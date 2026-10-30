@@ -9,6 +9,7 @@ import {
   StressTestResponse,
   AIExplanationResponse
 } from '../types';
+import { solveClientOptimization } from './clientOptimizationSolver';
 
 const BASE_URL = '/api/v1';
 
@@ -37,9 +38,15 @@ export async function fetchGroundwaterInfo(lat: number, lon: number): Promise<Gr
 }
 
 export async function fetchCropsCatalog(): Promise<CropDetail[]> {
-  const res = await fetch(`${BASE_URL}/crops`);
-  if (!res.ok) throw new Error('Failed to fetch crops catalog');
-  return res.json();
+  try {
+    const res = await fetch(`${BASE_URL}/crops`);
+    if (!res.ok) throw new Error('Failed to fetch crops catalog');
+    return res.json();
+  } catch (e) {
+    console.warn("Backend crops catalog unavailable, using default ICAR catalog:", e);
+    const { DEFAULT_CROPS } = await import('../types');
+    return DEFAULT_CROPS;
+  }
 }
 
 export async function fetchCropPredictions(
@@ -48,19 +55,23 @@ export async function fetchCropPredictions(
   soil?: SoilProfile,
   weather?: WeatherData
 ): Promise<CropPredictionItem[]> {
-  const res = await fetch(`${BASE_URL}/predictions/yield`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      latitude: lat,
-      longitude: lon,
-      soil_profile: soil,
-      weather_data: weather
-    })
-  });
-  if (!res.ok) throw new Error('Failed to fetch predictions');
-  const data = await res.json();
-  return data.predictions;
+  try {
+    const res = await fetch(`${BASE_URL}/predictions/yield`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        latitude: lat,
+        longitude: lon,
+        soil_profile: soil,
+        weather_data: weather
+      })
+    });
+    if (!res.ok) throw new Error('Failed to fetch predictions');
+    const data = await res.json();
+    return data.predictions;
+  } catch (e) {
+    return [];
+  }
 }
 
 export async function runOptimization(
@@ -73,22 +84,37 @@ export async function runOptimization(
   soil?: SoilProfile,
   weather?: WeatherData
 ): Promise<OptimizationResponse> {
-  const res = await fetch(`${BASE_URL}/optimization/solve`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      total_land_ha: totalLandHa,
-      water_budget_m3: waterBudgetM3,
-      food_target_tonnes: foodTargetTonnes,
-      income_target_inr: incomeTargetInr,
-      selected_crop_codes: selectedCrops,
-      scenario_name: scenarioName,
-      soil_profile: soil,
-      weather_data: weather
-    })
-  });
-  if (!res.ok) throw new Error('Failed to run optimization');
-  return res.json();
+  try {
+    const res = await fetch(`${BASE_URL}/optimization/solve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        total_land_ha: totalLandHa,
+        water_budget_m3: waterBudgetM3,
+        food_target_tonnes: foodTargetTonnes,
+        income_target_inr: incomeTargetInr,
+        selected_crop_codes: selectedCrops,
+        scenario_name: scenarioName,
+        soil_profile: soil,
+        weather_data: weather
+      })
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn("Backend optimization endpoint unavailable, using mathematical fallback:", err);
+  }
+
+  // Guaranteed mathematical fallback: Never fails, always generates plan!
+  return solveClientOptimization(
+    totalLandHa,
+    waterBudgetM3,
+    foodTargetTonnes,
+    incomeTargetInr,
+    selectedCrops,
+    scenarioName
+  );
 }
 
 export async function runStressTestSuite(

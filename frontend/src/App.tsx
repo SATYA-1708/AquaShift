@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
-import { PRESET_LOCATIONS } from './constants/locations';
 import { GeospatialMap } from './components/GeospatialMap';
 import { EnvironmentalCards } from './components/EnvironmentalCards';
 import { ScenarioBuilder } from './components/ScenarioBuilder';
@@ -9,6 +8,7 @@ import { StressTestingStudio } from './components/StressTestingStudio';
 import { CropPredictionStudio } from './components/CropPredictionStudio';
 import { ImpactComparisonCard } from './components/ImpactComparisonCard';
 import { KisanAdvisoryCardModal } from './components/KisanAdvisoryCardModal';
+import { LocationSearchModal } from './components/LocationSearchModal';
 import { AIReportModal } from './components/AIReportModal';
 import { LandingHero } from './components/LandingHero';
 import { 
@@ -51,8 +51,9 @@ export function App() {
   const [language, setLanguage] = useState<Language>('en');
   const t = TRANSLATIONS[language];
 
-  const [selectedLocationKey, setSelectedLocationKey] = useState<string>('sangrur');
-  const [locationLabel, setLocationLabel] = useState<string>('Sangrur, Punjab');
+  // Universal Location State (Replaces fixed dropdown)
+  const [locationLabel, setLocationLabel] = useState<string>('Sangrur, Punjab (Critical Water Level)');
+  const [locationModalOpen, setLocationModalOpen] = useState<boolean>(false);
   const [isLocating, setIsLocating] = useState<boolean>(false);
 
   // Geospatial & Field Coordinates
@@ -151,7 +152,7 @@ export function App() {
       setGroundwater(gwData);
 
       if (geoData) {
-        setLocationLabel(`${geoData.village}, ${geoData.district}, ${geoData.state}`);
+        setLocationLabel(`${geoData.village || geoData.district}, ${geoData.state}`);
       }
 
       if (wData || sData) {
@@ -173,51 +174,18 @@ export function App() {
     }
   };
 
-  const handleSelectLocation = (locKey: string) => {
-    setSelectedLocationKey(locKey);
-    const loc = PRESET_LOCATIONS.find(l => l.key === locKey);
-    if (loc) {
-      setLocationLabel(loc.label);
-      setActiveCenter([loc.lat, loc.lon]);
-      setFieldCoordinates([
-        [loc.lat - 0.004, loc.lon - 0.004],
-        [loc.lat - 0.003, loc.lon + 0.005],
-        [loc.lat + 0.005, loc.lon + 0.004],
-        [loc.lat + 0.004, loc.lon - 0.005],
-        [loc.lat - 0.004, loc.lon - 0.004]
-      ]);
-      void loadLocationData(loc.lat, loc.lon);
-    }
-  };
-
-  const handleGpsLocate = () => {
-    if (!navigator.geolocation) {
-      alert("Browser Geolocation is not supported in this browser.");
-      return;
-    }
-    setIsLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude;
-        const lon = pos.coords.longitude;
-        setActiveCenter([lat, lon]);
-        setFieldCoordinates([
-          [lat - 0.004, lon - 0.004],
-          [lat - 0.003, lon + 0.005],
-          [lat + 0.005, lon + 0.004],
-          [lat + 0.004, lon - 0.005],
-          [lat - 0.004, lon - 0.004]
-        ]);
-        await loadLocationData(lat, lon);
-        setIsLocating(false);
-      },
-      (err) => {
-        console.warn("GPS error:", err);
-        setIsLocating(false);
-        alert("Unable to retrieve your location. Reverting to Sangrur, Punjab benchmark.");
-      },
-      { timeout: 7000 }
-    );
+  // Select Any Location (Search Place, Google Maps link, or Manual Coordinates)
+  const handleSelectCustomCoordinates = (lat: number, lon: number, label: string) => {
+    setLocationLabel(label);
+    setActiveCenter([lat, lon]);
+    setFieldCoordinates([
+      [lat - 0.004, lon - 0.004],
+      [lat - 0.003, lon + 0.005],
+      [lat + 0.005, lon + 0.004],
+      [lat + 0.004, lon - 0.005],
+      [lat - 0.004, lon - 0.004]
+    ]);
+    void loadLocationData(lat, lon);
   };
 
   // Interactive Custom Farm Boundary Drawn on Map
@@ -289,14 +257,13 @@ export function App() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-emerald-200 selection:text-emerald-900">
       
-      {/* Primary Top Navigation with Language Switcher */}
+      {/* Primary Top Navigation with Location Search Trigger & Language Switcher */}
       <Navbar
         currentView={currentView}
         setCurrentView={setCurrentView}
-        selectedLocation={selectedLocationKey}
-        onSelectLocation={handleSelectLocation}
-        onGpsLocate={handleGpsLocate}
-        isLocating={isLocating}
+        locationLabel={locationLabel}
+        coordinates={activeCenter}
+        onOpenLocationSearch={() => setLocationModalOpen(true)}
         language={language}
         onSelectLanguage={setLanguage}
         t={t}
@@ -320,8 +287,8 @@ export function App() {
                 <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-100">
                   <Ruler className="w-5 h-5" />
                 </div>
-                <div>
-                  <span className="text-xs font-semibold text-slate-500 block">{t.totalLandArea}</span>
+                <div className="min-w-0">
+                  <span className="text-xs font-semibold text-slate-500 block truncate">{t.totalLandArea}</span>
                   <div className="text-lg font-heading font-extrabold text-slate-900 leading-tight">
                     {totalLand} ha <span className="text-xs font-normal text-slate-500">({(totalLand * 2.471).toFixed(1)} ac)</span>
                   </div>
@@ -332,9 +299,9 @@ export function App() {
                 <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center shrink-0 border border-blue-100">
                   <Droplets className="w-5 h-5" />
                 </div>
-                <div>
-                  <span className="text-xs font-semibold text-slate-500 block">{t.groundwaterLevel}</span>
-                  <div className="text-lg font-heading font-extrabold text-slate-900 leading-tight">
+                <div className="min-w-0">
+                  <span className="text-xs font-semibold text-slate-500 block truncate">{t.groundwaterLevel}</span>
+                  <div className="text-lg font-heading font-extrabold text-slate-900 leading-tight truncate">
                     {groundwater?.depth_mbgl || 34.6} m <span className="text-xs font-bold text-red-600">({groundwater?.classification || 'Overdrawn'})</span>
                   </div>
                 </div>
@@ -344,9 +311,9 @@ export function App() {
                 <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-100">
                   <ShieldCheck className="w-5 h-5" />
                 </div>
-                <div>
-                  <span className="text-xs font-semibold text-slate-500 block">{t.waterSaved}</span>
-                  <div className="text-lg font-heading font-extrabold text-emerald-700 leading-tight">
+                <div className="min-w-0">
+                  <span className="text-xs font-semibold text-slate-500 block truncate">{t.waterSaved}</span>
+                  <div className="text-lg font-heading font-extrabold text-emerald-700 leading-tight truncate">
                     {optResult ? optResult.water_savings_vs_budget_m3.toLocaleString() : '1,31,336'} m³ <span className="text-xs font-semibold text-slate-500">saved</span>
                   </div>
                 </div>
@@ -356,8 +323,8 @@ export function App() {
                 <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 border border-amber-100">
                   <TrendingUp className="w-5 h-5" />
                 </div>
-                <div>
-                  <span className="text-xs font-semibold text-slate-500 block">{t.estimatedNetProfit}</span>
+                <div className="min-w-0">
+                  <span className="text-xs font-semibold text-slate-500 block truncate">{t.estimatedNetProfit}</span>
                   <div className="text-lg font-heading font-extrabold text-slate-900 leading-tight">
                     ₹{optResult ? (optResult.total_farmer_net_income_inr / 100000).toFixed(1) : '31.6'} Lakhs <span className="text-xs font-normal text-slate-500">(₹{(3158336 / totalLand).toFixed(0)}/ha)</span>
                   </div>
@@ -398,9 +365,12 @@ export function App() {
                       <span>🛰️</span>
                       <span>Farm Boundary &amp; Satellite Cadastre</span>
                     </h3>
-                    <span className="text-xs text-slate-500 font-medium">
-                      GPS Field Cadastre &bull; {locationLabel}
-                    </span>
+                    <button
+                      onClick={() => setLocationModalOpen(true)}
+                      className="text-xs text-emerald-700 hover:text-emerald-800 font-bold underline cursor-pointer truncate max-w-[200px]"
+                    >
+                      {locationLabel}
+                    </button>
                   </div>
                   <GeospatialMap
                     coordinates={fieldCoordinates}
@@ -479,9 +449,12 @@ export function App() {
                 <h2 className="text-xl font-heading font-extrabold text-slate-900">Farm Satellite Field Explorer</h2>
                 <p className="text-xs text-slate-500 font-medium">High-resolution GIS view, field boundary cadastre, and local government monitoring wells</p>
               </div>
-              <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-200">
-                GPS Projection: EPSG:4326 &bull; {locationLabel}
-              </span>
+              <button
+                onClick={() => setLocationModalOpen(true)}
+                className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-200 hover:bg-emerald-100 transition cursor-pointer"
+              >
+                Change Location &bull; {locationLabel}
+              </button>
             </div>
 
             <GeospatialMap
@@ -525,6 +498,16 @@ export function App() {
         )}
 
       </main>
+
+      {/* Universal Farm Location Selector Modal (Search Place, Google Maps Link, Coordinates, GPS) */}
+      <LocationSearchModal
+        isOpen={locationModalOpen}
+        onClose={() => setLocationModalOpen(false)}
+        onSelectCoordinates={handleSelectCustomCoordinates}
+        currentLabel={locationLabel}
+        currentCenter={activeCenter}
+        t={t}
+      />
 
       {/* Official 1-Click Printable Kisan Advisory Card Modal */}
       {optResult && (
