@@ -26,7 +26,9 @@ import {
   getStoredGroqKey, 
   setStoredGroqKey, 
   getStoredGroqModel, 
-  setStoredGroqModel 
+  setStoredGroqModel,
+  fetchAvailableGroqModels,
+  GROQ_CANDIDATE_MODELS
 } from '../services/groqChatService';
 
 interface KisanChatbotProps {
@@ -65,6 +67,7 @@ export const KisanChatbot: React.FC<KisanChatbotProps> = ({ farmContext }) => {
   const [isKeyModalOpen, setIsKeyModalOpen] = useState<boolean>(false);
   const [groqKey, setGroqKey] = useState<string>('');
   const [selectedModel, setSelectedModel] = useState<string>('llama-3.3-70b-versatile');
+  const [availableModels, setAvailableModels] = useState<string[]>(GROQ_CANDIDATE_MODELS);
   const [keySavedNotification, setKeySavedNotification] = useState<boolean>(false);
 
   // Voice Recording (Microphone) State
@@ -83,7 +86,21 @@ export const KisanChatbot: React.FC<KisanChatbotProps> = ({ farmContext }) => {
     setGroqKey(key);
     const model = getStoredGroqModel();
     setSelectedModel(model);
+    if (key && key.startsWith('gsk_')) {
+      void fetchAvailableGroqModels(key).then(models => {
+        if (models && models.length > 0) setAvailableModels(models);
+      });
+    }
   }, []);
+
+  // Fetch available models whenever modal opens or key changes
+  useEffect(() => {
+    if (isKeyModalOpen && groqKey && groqKey.startsWith('gsk_')) {
+      void fetchAvailableGroqModels(groqKey).then(models => {
+        if (models && models.length > 0) setAvailableModels(models);
+      });
+    }
+  }, [isKeyModalOpen, groqKey]);
 
   // Auto-scroll to bottom of messages
   useEffect(() => {
@@ -579,16 +596,18 @@ export const KisanChatbot: React.FC<KisanChatbotProps> = ({ farmContext }) => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">
-                  Neural Model
+                  Neural Model ({availableModels.length} Active Candidates)
                 </label>
                 <select
                   value={selectedModel}
                   onChange={(e) => setSelectedModel(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-semibold focus:outline-hidden"
                 >
-                  <option value="llama-3.3-70b-versatile">LLaMA 3.3 70B Versatile (Recommended • Deep Agronomy & Indian Languages)</option>
-                  <option value="llama-3.1-8b-instant">LLaMA 3.1 8B Instant (Ultra-Fast 800 tokens/sec)</option>
-                  <option value="mixtral-8x7b-32768">Mixtral 8x7B (Long Context)</option>
+                  {availableModels.map((m) => (
+                    <option key={m} value={m}>
+                      {m} {m.includes('70b') ? '(Recommended • Multilingual Indian Agronomy)' : m.includes('8b') ? '(Ultra-Fast)' : ''}
+                    </option>
+                  ))}
                 </select>
               </div>
 

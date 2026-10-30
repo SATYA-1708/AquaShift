@@ -29,6 +29,7 @@ import {
   StressTestResponse,
   AIExplanationResponse,
   DEFAULT_CROPS,
+  DEFAULT_PREDICTIONS,
   DEFAULT_OPTIMIZATION_RESULT
 } from './types';
 
@@ -94,7 +95,7 @@ export function App() {
   const [soil, setSoil] = useState<SoilProfile | undefined>();
   const [groundwater, setGroundwater] = useState<GroundwaterStationInfo | undefined>();
   const [cropsCatalog, setCropsCatalog] = useState<CropDetail[]>(DEFAULT_CROPS);
-  const [predictions, setPredictions] = useState<CropPredictionItem[]>([]);
+  const [predictions, setPredictions] = useState<CropPredictionItem[]>(DEFAULT_PREDICTIONS);
   const [optResult, setOptResult] = useState<OptimizationResponse | null>(DEFAULT_OPTIMIZATION_RESULT);
   const [stressData, setStressData] = useState<StressTestResponse | null>(null);
 
@@ -319,10 +320,10 @@ export function App() {
         {currentView === 'dashboard' && (
           <div className="flex flex-col gap-6">
             
-            {/* Top KPI Stat Bar (4 Cards) */}
+            {/* Top KPI Stat Bar (4 Distinct Multi-Toned Cards) */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="farm-card p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-100">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs flex items-center gap-3 hover:border-slate-300 transition">
+                <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-800 flex items-center justify-center shrink-0 border border-slate-200 shadow-2xs">
                   <Ruler className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
@@ -333,32 +334,32 @@ export function App() {
                 </div>
               </div>
 
-              <div className="farm-card p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center shrink-0 border border-blue-100">
+              <div className="bg-gradient-to-br from-white to-sky-50/70 p-4 rounded-2xl border border-sky-200/80 shadow-2xs flex items-center gap-3 hover:border-sky-300 transition">
+                <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 border border-sky-200 shadow-2xs">
                   <Droplets className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
                   <span className="text-xs font-semibold text-slate-500 block truncate">{t.groundwaterLevel}</span>
                   <div className="text-lg font-heading font-extrabold text-slate-900 leading-tight truncate">
-                    {groundwater?.depth_mbgl || 34.6} m <span className="text-xs font-bold text-red-600">({groundwater?.classification || 'Overdrawn'})</span>
+                    {groundwater?.depth_mbgl || 34.6} m <span className="text-xs font-bold text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded border border-rose-200">({groundwater?.classification || 'Overdrawn'})</span>
                   </div>
                 </div>
               </div>
 
-              <div className="farm-card p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-100">
+              <div className="bg-gradient-to-br from-white to-teal-50/70 p-4 rounded-2xl border border-teal-200/80 shadow-2xs flex items-center gap-3 hover:border-teal-300 transition">
+                <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center shrink-0 border border-teal-200 shadow-2xs">
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
                   <span className="text-xs font-semibold text-slate-500 block truncate">{t.waterSaved}</span>
-                  <div className="text-lg font-heading font-extrabold text-emerald-700 leading-tight truncate">
+                  <div className="text-lg font-heading font-extrabold text-teal-800 leading-tight truncate">
                     {optResult ? optResult.water_savings_vs_budget_m3.toLocaleString() : '1,31,336'} m³ <span className="text-xs font-semibold text-slate-500">saved</span>
                   </div>
                 </div>
               </div>
 
-              <div className="farm-card p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 border border-amber-100">
+              <div className="bg-gradient-to-br from-white to-amber-50/70 p-4 rounded-2xl border border-amber-200/80 shadow-2xs flex items-center gap-3 hover:border-amber-300 transition">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 border border-amber-200 shadow-2xs">
                   <TrendingUp className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">

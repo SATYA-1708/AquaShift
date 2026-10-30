@@ -6,10 +6,13 @@ import {
   Utensils, 
   Ruler, 
   Sparkles, 
-  RefreshCw,
-  AlertTriangle,
-  Check,
-  Leaf
+  RefreshCw, 
+  AlertTriangle, 
+  Check, 
+  Leaf,
+  Sun,
+  CloudRain,
+  Flame
 } from 'lucide-react';
 import { CropDetail } from '../types';
 import { Translations } from '../constants/translations';
@@ -33,6 +36,19 @@ interface ScenarioBuilderProps {
   t: Translations;
 }
 
+const CROP_EMOJIS: Record<string, string> = {
+  PADDY: '🌾',
+  WHEAT: '🌾',
+  MAIZE: '🌽',
+  COTTON: '☁️',
+  MOONG: '🟢',
+  CHICKPEA: '🧆',
+  MUSTARD: '🌻',
+  SUGARCANE: '🎋',
+  GROUNDNUT: '🥜',
+  TOMATO: '🍅'
+};
+
 export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
   totalLand,
   setTotalLand,
@@ -51,15 +67,15 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
   activePreset,
   t
 }) => {
-  const isExtreme = waterBudget < 50000 || activePreset === 'extreme';
+  const isExtreme = waterBudget < 60000 || activePreset === 'extreme';
 
   return (
-    <div className="farm-card p-6 flex flex-col gap-6">
+    <div className="farm-card p-5 sm:p-6 flex flex-col gap-6 bg-white border border-slate-200/90 shadow-sm rounded-2xl">
       
       {/* Header & Quick Climate Presets */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center border border-emerald-200 shrink-0">
+        <div className="flex items-start sm:items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center shrink-0 shadow-md">
             <Sliders className="w-6 h-6 stroke-[2.2]" />
           </div>
           <div>
@@ -72,43 +88,44 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
           </div>
         </div>
 
-        {/* Quick Scenario Buttons for Farmers */}
-        <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200 self-start sm:self-auto">
+        {/* Quick Scenario Buttons with Semantic Colors */}
+        <div className="flex flex-wrap items-center gap-1.5 bg-slate-100/80 p-1.5 rounded-xl border border-slate-200 self-start sm:self-auto">
           {[
-            { key: 'baseline', label: t.normalYear },
-            { key: 'water_20', label: t.mildShortage },
-            { key: 'water_50', label: t.severeDrought },
-            { key: 'extreme', label: t.crisis }
+            { key: 'baseline', label: t.normalYear, activeClass: 'bg-emerald-600 text-white shadow-xs', icon: '🌱' },
+            { key: 'water_20', label: t.mildShortage, activeClass: 'bg-sky-600 text-white shadow-xs', icon: '💧' },
+            { key: 'water_50', label: t.severeDrought, activeClass: 'bg-amber-600 text-white shadow-xs', icon: '☀️' },
+            { key: 'extreme', label: t.crisis, activeClass: 'bg-rose-600 text-white shadow-xs', icon: '🔥' }
           ].map((p) => {
             const isActive = activePreset === p.key;
             return (
               <button
                 key={p.key}
                 onClick={() => onApplyPreset(p.key)}
-                className={`text-xs px-2.5 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
+                className={`text-xs px-2.5 py-1.5 rounded-lg font-bold transition cursor-pointer flex items-center gap-1 ${
                   isActive
-                    ? 'bg-emerald-700 text-white shadow-xs'
-                    : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300'
+                    ? p.activeClass
+                    : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                 }`}
               >
-                {p.label}
+                <span>{p.icon}</span>
+                <span>{p.label}</span>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Sliders Grid: 2-Column Responsive Layout */}
+      {/* Sliders Grid: 2-Column Responsive Layout with Multi-tone Themes */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         
-        {/* Total Land Slider */}
-        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col justify-between">
+        {/* 1. Total Land Slider (Slate & Emerald Earth Theme) */}
+        <div className="bg-slate-50/90 hover:bg-white p-4 rounded-xl border border-slate-200/90 transition shadow-2xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                 <Ruler className="w-4 h-4 text-emerald-700" /> {t.totalFarmArea}
               </span>
-              <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-200">
+              <span className="text-xs font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md border border-emerald-200 font-mono">
                 {(totalLand * 2.471).toFixed(1)} Acres
               </span>
             </div>
@@ -131,20 +148,22 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
           </div>
         </div>
 
-        {/* Water Budget Slider */}
-        <div className={`p-4 rounded-xl border flex flex-col justify-between ${
+        {/* 2. Water Budget Slider (Hydro Azure/Blue Theme) */}
+        <div className={`p-4 rounded-xl border transition shadow-2xs flex flex-col justify-between ${
           waterBudget < 60000 
-            ? 'bg-red-50 border-red-300 ring-2 ring-red-200' 
-            : 'bg-slate-50 border-slate-200'
+            ? 'bg-rose-50/70 border-rose-300 ring-2 ring-rose-200' 
+            : 'bg-sky-50/50 hover:bg-white border-sky-200/90'
         }`}>
           <div>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <Droplet className={`w-4 h-4 ${waterBudget < 60000 ? 'text-red-600' : 'text-blue-600'}`} /> 
+              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Droplet className={`w-4 h-4 ${waterBudget < 60000 ? 'text-rose-600' : 'text-sky-600'}`} /> 
                 {t.availableBorewellWater}
               </span>
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-md border ${
-                waterBudget < 60000 ? 'bg-red-100 text-red-800 border-red-200' : 'bg-blue-100 text-blue-800 border-blue-200'
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-md border font-mono ${
+                waterBudget < 60000 
+                  ? 'bg-rose-100 text-rose-800 border-rose-300' 
+                  : 'bg-sky-100 text-sky-800 border-sky-200'
               }`}>
                 {(waterBudget / 1000).toFixed(0)}k m³
               </span>
@@ -160,7 +179,7 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
             step="5000"
             value={waterBudget}
             onChange={(e) => setWaterBudget(parseFloat(e.target.value))}
-            className="w-full my-2 accent-blue-600 cursor-pointer"
+            className="w-full my-2 accent-sky-600 cursor-pointer"
           />
           <div className="flex justify-between text-[11px] text-slate-500 font-medium">
             <span>10,000 m³</span>
@@ -168,14 +187,14 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
           </div>
         </div>
 
-        {/* Food Target Slider */}
-        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col justify-between">
+        {/* 3. Food Target Slider (Warm Amber Grain Theme) */}
+        <div className="bg-amber-50/40 hover:bg-white p-4 rounded-xl border border-amber-200/80 transition shadow-2xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <Utensils className="w-4 h-4 text-amber-700" /> {t.minimumFoodTarget}
               </span>
-              <span className="text-xs font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200">
+              <span className="text-xs font-bold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200 font-mono">
                 {(foodTarget * 10).toFixed(0)} Quintals
               </span>
             </div>
@@ -198,14 +217,14 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
           </div>
         </div>
 
-        {/* Income Target Slider */}
-        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col justify-between">
+        {/* 4. Income Target Slider (Prosperity Emerald/Gold Theme) */}
+        <div className="bg-emerald-50/40 hover:bg-white p-4 rounded-xl border border-emerald-200/80 transition shadow-2xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <TrendingUp className="w-4 h-4 text-emerald-700" /> {t.netProfitTarget}
               </span>
-              <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-200">
+              <span className="text-xs font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md border border-emerald-200 font-mono">
                 ₹{(incomeTarget / (totalLand * 2.471)).toFixed(0)} / Acre
               </span>
             </div>
@@ -232,10 +251,10 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
 
       {/* Warning Callout when Water is Extremely Low */}
       {isExtreme && (
-        <div className="flex items-start gap-3 bg-red-50 border border-red-200 p-4 rounded-xl text-xs text-red-900">
-          <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+        <div className="flex items-start gap-3 bg-rose-50 border border-rose-200 p-4 rounded-xl text-xs text-rose-900 animate-in fade-in duration-200">
+          <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
           <div className="leading-relaxed">
-            <b className="font-bold">Severe Water Shortage Warning:</b> With only {(waterBudget / 1000).toFixed(0)}k m³ of water, high-water crops like flood-irrigated paddy are not physically possible. The system will prioritize high-value drought crops (Moong, Mustard, Drip Tomato) to protect your livelihood and avoid dried-up borewells.
+            <b className="font-bold">Severe Water Shortage Warning:</b> With only {(waterBudget / 1000).toFixed(0)}k m³ of available water, high-water crops like flood-irrigated paddy will deplete your tubewells. The system prioritizes drought-resilient crops (Moong, Mustard, Drip Tomato) to protect your livelihood and avoid dried-up borewells.
           </div>
         </div>
       )}
@@ -252,14 +271,19 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
               {t.cropsEligibleSubtitle}
             </p>
           </div>
-          <span className="text-xs font-semibold text-slate-500">
-            Selected: {selectedCrops.length} / {availableCrops.length}
+          <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg">
+            Selected: <b className="text-slate-900">{selectedCrops.length}</b> / {availableCrops.length}
           </span>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           {availableCrops.map((c) => {
             const isSelected = selectedCrops.includes(c.code);
+            const emoji = CROP_EMOJIS[c.code] || '🌱';
+            const isPulse = c.category.toLowerCase().includes('pulse');
+            const isOilseed = c.category.toLowerCase().includes('oilseed');
+            const isCereal = c.category.toLowerCase().includes('cereal');
+
             return (
               <button
                 key={c.code}
@@ -267,14 +291,21 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
                 onClick={() => toggleCrop(c.code)}
                 className={`p-3 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
                   isSelected
-                    ? 'bg-emerald-50/70 border-emerald-400 shadow-xs ring-1 ring-emerald-300'
+                    ? isPulse 
+                      ? 'bg-emerald-50/80 border-emerald-400 shadow-xs ring-1 ring-emerald-300' 
+                      : isOilseed 
+                      ? 'bg-amber-50/80 border-amber-400 shadow-xs ring-1 ring-amber-300'
+                      : isCereal
+                      ? 'bg-sky-50/80 border-sky-400 shadow-xs ring-1 ring-sky-300'
+                      : 'bg-teal-50/80 border-teal-400 shadow-xs ring-1 ring-teal-300'
                     : 'bg-white border-slate-200 hover:border-slate-300 text-slate-400'
                 }`}
               >
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className={`text-xs font-bold truncate ${isSelected ? 'text-slate-900' : 'text-slate-500'}`}>
-                      {c.name}
+                    <span className={`text-xs font-bold truncate flex items-center gap-1.5 ${isSelected ? 'text-slate-900' : 'text-slate-500'}`}>
+                      <span>{emoji}</span>
+                      <span className="truncate">{c.name}</span>
                     </span>
                     <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
                       isSelected ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-400'
@@ -283,7 +314,7 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
                     </span>
                   </div>
 
-                  <span className="text-[11px] text-slate-500 block">
+                  <span className="text-[11px] text-slate-500 block truncate">
                     {c.category} &bull; {c.season}
                   </span>
                 </div>
@@ -299,7 +330,7 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
                       ? 'bg-amber-100 text-amber-800' 
                       : 'bg-red-100 text-red-800'
                   }`}>
-                    {c.drought_tolerance} Dry
+                    {c.drought_tolerance}
                   </span>
                 </div>
               </button>
@@ -317,7 +348,7 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
         <button
           onClick={onRunOptimization}
           disabled={isLoading}
-          className="w-full sm:w-auto px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-heading font-extrabold text-sm flex items-center justify-center gap-2 shadow-sm transition cursor-pointer disabled:opacity-50"
+          className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 hover:from-emerald-700 hover:to-teal-800 active:from-emerald-800 active:to-teal-900 text-white font-heading font-extrabold text-sm flex items-center justify-center gap-2.5 shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 cursor-pointer disabled:opacity-50"
         >
           {isLoading ? (
             <>
