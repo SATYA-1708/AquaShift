@@ -5,13 +5,15 @@ import {
   Layers, 
   Droplet, 
   Ruler, 
-  Compass, 
   MapPin, 
   CloudSun,
-  Eye,
-  Maximize2
+  PenTool,
+  Check,
+  RotateCcw,
+  Sparkles
 } from 'lucide-react';
 import { GroundwaterStationInfo, WeatherData } from '../types';
+import { Translations } from '../constants/translations';
 
 interface GeospatialMapProps {
   coordinates: [number, number][];
@@ -21,7 +23,9 @@ interface GeospatialMapProps {
   groundwaterStation?: GroundwaterStationInfo;
   weather?: WeatherData;
   onPolygonChange?: (newCoords: [number, number][]) => void;
+  onPolygonDrawn?: (newCoords: [number, number][], calculatedAreaHa: number) => void;
   allocatedCrops?: { crop_name: string; allocated_ha: number; percentage_of_land: number }[];
+  t: Translations;
 }
 
 export const GeospatialMap: React.FC<GeospatialMapProps> = ({
@@ -32,15 +36,39 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
   groundwaterStation,
   weather,
   onPolygonChange,
-  allocatedCrops
+  onPolygonDrawn,
+  allocatedCrops,
+  t
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const polygonLayerRef = useRef<L.Polygon | null>(null);
+  const drawingLayerRef = useRef<L.LayerGroup | null>(null);
   const stationMarkerRef = useRef<L.Marker | null>(null);
-  // Default to Satellite as requested by user
+
+  // Layer & Interactive State
   const [mapLayer, setMapLayer] = useState<'satellite' | 'terrain' | 'street'>('satellite');
-  const [showOverlays, setShowOverlays] = useState(true);
+  const [isDrawing, setIsDrawing] = useState<boolean>(false);
+  const [drawnPoints, setDrawnPoints] = useState<[number, number][]>([]);
+
+  // Calculate Geodesic Area (Shoelace spherical formula)
+  const calculatePolygonAreaHa = (pts: [number, number][]): number => {
+    if (pts.length < 3) return 25.0;
+    const earthRadius = 6378137; // meters
+    let area = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const j = (i + 1) % pts.length;
+      const p1 = pts[i];
+      const p2 = pts[j];
+      const radLat1 = (p1[0] * Math.PI) / 180;
+      const radLat2 = (p2[0] * Math.PI) / 180;
+      const deltaLon = ((p2[1] - p1[1]) * Math.PI) / 180;
+      area += deltaLon * (2 + Math.sin(radLat1) + Math.sin(radLat2));
+    }
+    area = Math.abs((area * earthRadius * earthRadius) / 2.0);
+    const ha = area / 10000;
+    return Math.max(2, Math.min(120, Math.round(ha * 10) / 10));
+  };
 
   // Initialize Map
   useEffect(() => {
@@ -54,6 +82,7 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
       });
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
+      drawingLayerRef.current = L.layerGroup().addTo(map);
       mapInstanceRef.current = map;
     }
 
@@ -83,24 +112,108 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
       maxZoom: 19
     }).addTo(map);
 
-    // Multi-timer invalidateSize to guarantee tiles render properly
     setTimeout(() => map.invalidateSize(), 100);
     setTimeout(() => map.invalidateSize(), 400);
-    setTimeout(() => map.invalidateSize(), 1000);
-
   }, [center, mapLayer]);
 
-  // Update Polygon and Markers
+  // Handle Interactive Map Click for Plot Drawing
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    // Draw field boundary polygon
+    const handleMapClick = (e: L.LeafletMouseEvent) => {
+      if (!isDrawing) return;
+      const newPoint: [number, number] = [e.latlng.lat, e.latlng.lng];
+      setDrawnPoints((prev) => [...prev, newPoint]);
+    };
+
+    map.on('click', handleMapClick);
+    return () => {
+      map.off('click', handleMapClick);
+    };
+  }, [isDrawing]);
+
+  // Render Live Preview of Drawn Points
+  useEffect(() => {
+    if (!drawingLayerRef.current || !mapInstanceRef.current) return;
+    const dGroup = drawingLayerRef.current;
+    dGroup.clearLayers();
+
+    if (isDrawing && drawnPoints.length > 0) {
+      drawnPoints.forEach((pt, idx) => {
+        const marker = L.circleMarker(pt, {
+          radius: 6,
+          color: '#ffffff',
+          weight: 2,
+          fillColor: '#22c55e',
+          fillOpacity: 1
+        });
+        marker.bindTooltip(`Point ${idx + 1}`, { permanent: true, direction: 'top' });
+        dGroup.addLayer(marker);
+      });
+
+      if (drawnPoints.length >= 2) {
+        const line = L.polyline(drawnPoints, {
+          color: '#22c55e',
+          weight: 3,
+          dashArray: '4, 4'
+        });
+        dGroup.addLayer(line);
+      }
+
+      if (drawnPoints.length >= 3) {
+        const polyPreview = L.polygon(drawnPoints, {
+          color: '#22c55e',
+          weight: 2,
+          fillColor: '#4ade80',
+          fillOpacity: 0.25
+        });
+        dGroup.addLayer(polyPreview);
+      }
+    }
+  }, [drawnPoints, isDrawing]);
+
+  // Complete Drawing Action
+  const handleFinishDrawing = () => {
+    if (drawnPoints.length < 3) {
+      alert("Please click at least 3 points on the satellite map to outline your field.");
+      return;
+    }
+    const closedCoords: [number, number][] = [...drawnPoints, drawnPoints[0]];
+    const calculatedHa = calculatePolygonAreaHa(drawnPoints);
+
+    if (onPolygonDrawn) {
+      onPolygonDrawn(closedCoords, calculatedHa);
+    } else if (onPolygonChange) {
+      onPolygonChange(closedCoords);
+    }
+
+    setIsDrawing(false);
+    setDrawnPoints([]);
+    if (drawingLayerRef.current) {
+      drawingLayerRef.current.clearLayers();
+    }
+  };
+
+  // Cancel Drawing Action
+  const handleCancelDrawing = () => {
+    setIsDrawing(false);
+    setDrawnPoints([]);
+    if (drawingLayerRef.current) {
+      drawingLayerRef.current.clearLayers();
+    }
+  };
+
+  // Update Main Polygon and Station Marker
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
     if (polygonLayerRef.current) {
       map.removeLayer(polygonLayerRef.current);
     }
 
-    if (coordinates.length >= 3) {
+    if (coordinates.length >= 3 && !isDrawing) {
       const isSatellite = mapLayer === 'satellite';
       const poly = L.polygon(coordinates, {
         color: isSatellite ? '#22c55e' : '#15803d',
@@ -177,26 +290,23 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
       stationMarkerRef.current = stMarker;
     }
 
-    setTimeout(() => {
-      map.invalidateSize();
-    }, 200);
-
-  }, [coordinates, areaHa, areaAcres, groundwaterStation, mapLayer]);
+  }, [coordinates, areaHa, areaAcres, groundwaterStation, mapLayer, isDrawing]);
 
   return (
-    <div className="relative w-full h-[440px] rounded-2xl overflow-hidden farm-card shadow-xs border border-slate-200">
+    <div className="relative w-full h-[450px] rounded-2xl overflow-hidden farm-card shadow-xs border border-slate-200">
+      
       {/* Map Canvas */}
       <div 
         ref={mapContainerRef} 
-        style={{ width: '100%', height: '100%', minHeight: '440px' }} 
+        style={{ width: '100%', height: '100%', minHeight: '450px', cursor: isDrawing ? 'crosshair' : 'grab' }} 
         className="w-full h-full z-0 bg-slate-900" 
       />
 
-      {/* Top Floating HUD: Layer Toggles (Satellite default) */}
-      <div className="absolute top-4 left-4 z-10 flex items-center gap-1.5 bg-white/95 backdrop-blur-md p-1.5 rounded-xl border border-slate-200 shadow-sm">
+      {/* Top Floating HUD: Layer Toggles & Interactive Plot Drawer */}
+      <div className="absolute top-4 left-4 z-10 flex flex-wrap items-center gap-1.5 bg-white/95 backdrop-blur-md p-1.5 rounded-xl border border-slate-200 shadow-sm">
         <button
           onClick={() => setMapLayer('satellite')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+          className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
             mapLayer === 'satellite' 
               ? 'bg-emerald-700 text-white shadow-2xs' 
               : 'text-slate-700 hover:bg-slate-100'
@@ -207,18 +317,18 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
         </button>
         <button
           onClick={() => setMapLayer('terrain')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+          className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
             mapLayer === 'terrain' 
               ? 'bg-emerald-700 text-white shadow-2xs' 
               : 'text-slate-700 hover:bg-slate-100'
           }`}
         >
           <span>🗺️</span>
-          <span>Farmland Map</span>
+          <span>Farmland</span>
         </button>
         <button
           onClick={() => setMapLayer('street')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+          className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
             mapLayer === 'street' 
               ? 'bg-emerald-700 text-white shadow-2xs' 
               : 'text-slate-700 hover:bg-slate-100'
@@ -227,7 +337,48 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
           <span>🛣️</span>
           <span>Roads</span>
         </button>
+
+        <div className="h-4 w-px bg-slate-300 mx-1 hidden sm:block" />
+
+        {/* Interactive Draw My Plot Button */}
+        {!isDrawing ? (
+          <button
+            onClick={() => {
+              setIsDrawing(true);
+              setDrawnPoints([]);
+            }}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+          >
+            <PenTool className="w-3.5 h-3.5" />
+            <span>{t.drawPlotBtn}</span>
+          </button>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleFinishDrawing}
+              disabled={drawnPoints.length < 3}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition cursor-pointer flex items-center gap-1 disabled:opacity-50"
+            >
+              <Check className="w-3.5 h-3.5" />
+              <span>{t.finishDrawingBtn} ({drawnPoints.length} pts)</span>
+            </button>
+            <button
+              onClick={handleCancelDrawing}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-200 hover:bg-slate-300 text-slate-700 transition cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Floating Prompt Banner when in Drawing Mode */}
+      {isDrawing && (
+        <div className="absolute top-16 left-4 right-4 z-10 bg-amber-500/95 text-white px-4 py-2.5 rounded-xl shadow-md text-xs font-bold flex items-center justify-between backdrop-blur-xs">
+          <span>📍 {t.drawPlotPrompt} ({drawnPoints.length} points placed)</span>
+          <span className="text-[11px] underline cursor-pointer" onClick={handleCancelDrawing}>Cancel</span>
+        </div>
+      )}
 
       {/* Right Floating HUD: Acreage & Land Details */}
       <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 max-w-[240px]">
@@ -280,7 +431,7 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
       </div>
 
       {/* Bottom Bar: Environmental Info */}
-      {weather && showOverlays && (
+      {weather && (
         <div className="absolute bottom-4 left-4 z-10 bg-white/95 backdrop-blur-md px-3.5 py-2 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-3 text-xs text-slate-700">
           <div className="flex items-center gap-1.5">
             <CloudSun className="w-4 h-4 text-amber-600" />

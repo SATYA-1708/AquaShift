@@ -8,13 +8,17 @@ import {
   ShieldCheck, 
   FileText,
   PieChart as PieIcon,
+  Printer,
   Sparkles
 } from 'lucide-react';
 import { OptimizationResponse } from '../types';
+import { Translations } from '../constants/translations';
 
 interface OptimizationResultsProps {
   result: OptimizationResponse;
   onOpenAIReport: () => void;
+  onOpenKisanCard: () => void;
+  t: Translations;
 }
 
 const CROP_COLORS: Record<string, string> = {
@@ -32,7 +36,9 @@ const CROP_COLORS: Record<string, string> = {
 
 export const OptimizationResults: React.FC<OptimizationResultsProps> = ({
   result,
-  onOpenAIReport
+  onOpenAIReport,
+  onOpenKisanCard,
+  t
 }) => {
   const { allocations, diagnosis } = result;
   const [hoveredCrop, setHoveredCrop] = useState<string | null>(null);
@@ -74,7 +80,7 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-base font-heading font-extrabold text-slate-900">
-                Recommended Seasonal Crop Plan
+                {t.recommendedPlanTitle}
               </h3>
               <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
                 {result.solver_status === 'OPTIMAL' ? 'Mathematically Optimal' : 'Feasible Solution'}
@@ -86,13 +92,24 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({
           </div>
         </div>
 
-        <button
-          onClick={onOpenAIReport}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition cursor-pointer self-start sm:self-auto"
-        >
-          <FileText className="w-4 h-4" />
-          <span>View Farmer Advisory Report (PDF)</span>
-        </button>
+        {/* Dual Actions: Print Kisan Card & AI Advisory Report */}
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          <button
+            onClick={onOpenKisanCard}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold border border-slate-300 shadow-2xs transition cursor-pointer"
+          >
+            <Printer className="w-4 h-4 text-emerald-700" />
+            <span>{t.printCardBtn}</span>
+          </button>
+
+          <button
+            onClick={onOpenAIReport}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+          >
+            <FileText className="w-4 h-4" />
+            <span>AI Report</span>
+          </button>
+        </div>
       </div>
 
       {/* Conflict / Bottleneck Diagnosis Alert */}
@@ -130,7 +147,7 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({
           <div>
             <div className="flex items-center justify-between text-xs text-slate-600 font-semibold mb-1">
               <span className="flex items-center gap-1.5 text-blue-700 font-bold">
-                <Droplets className="w-4 h-4" /> Water Consumed
+                <Droplets className="w-4 h-4" /> {t.waterConsumed}
               </span>
               <span className="font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded">
                 {waterPct}% of Budget
@@ -159,7 +176,7 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({
           <div>
             <div className="flex items-center justify-between text-xs text-slate-600 font-semibold mb-1">
               <span className="flex items-center gap-1.5 text-amber-700 font-bold">
-                <Utensils className="w-4 h-4" /> Food Harvested
+                <Utensils className="w-4 h-4" /> {t.foodHarvested}
               </span>
               <span className="font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
                 {foodPct}% of Target
@@ -185,7 +202,7 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({
           <div>
             <div className="flex items-center justify-between text-xs text-slate-600 font-semibold mb-1">
               <span className="flex items-center gap-1.5 text-emerald-700 font-bold">
-                <TrendingUp className="w-4 h-4" /> Estimated Net Profit
+                <TrendingUp className="w-4 h-4" /> {t.netProfit}
               </span>
               <span className="font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded">
                 {incomePct}% of Target
@@ -214,7 +231,7 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({
           <div className="flex items-center gap-2">
             <PieIcon className="w-4 h-4 text-emerald-700" />
             <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              Crop Acreage Allocation Share
+              {t.acreageShareTitle}
             </span>
           </div>
           <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-md border border-emerald-200">
@@ -224,7 +241,7 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
           
-          {/* Crisp Custom SVG Donut (Guaranteed to render in all browsers) */}
+          {/* Crisp Custom SVG Donut */}
           <div className="md:col-span-5 flex items-center justify-center">
             <div className="relative w-44 h-44 flex items-center justify-center">
               <svg className="w-full h-full -rotate-90" viewBox="0 0 140 140">
@@ -312,7 +329,7 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({
         <div className="flex items-center justify-between mb-3.5">
           <div>
             <h4 className="text-sm font-heading font-extrabold text-slate-900">
-              Crop-by-Crop Seasonal Planting Action Plan
+              {t.actionPlanTitle}
             </h4>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
               Exact land acreage, harvest expectations, water requirement, and projected net profit
@@ -327,11 +344,11 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[11px] bg-slate-50/50">
-                <th className="py-2.5 pl-3">Crop to Plant</th>
-                <th className="py-2.5 px-3">Land Size</th>
-                <th className="py-2.5 px-3">Expected Harvest</th>
-                <th className="py-2.5 px-3">Water Needed</th>
-                <th className="py-2.5 pr-3 text-right">Net Farmer Profit</th>
+                <th className="py-2.5 pl-3">{t.cropToPlant}</th>
+                <th className="py-2.5 px-3">{t.landSize}</th>
+                <th className="py-2.5 px-3">{t.expectedHarvest}</th>
+                <th className="py-2.5 px-3">{t.waterNeeded}</th>
+                <th className="py-2.5 pr-3 text-right">{t.netFarmerProfit}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

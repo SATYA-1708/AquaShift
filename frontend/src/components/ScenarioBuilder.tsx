@@ -12,6 +12,7 @@ import {
   Leaf
 } from 'lucide-react';
 import { CropDetail } from '../types';
+import { Translations } from '../constants/translations';
 
 interface ScenarioBuilderProps {
   totalLand: number;
@@ -29,6 +30,7 @@ interface ScenarioBuilderProps {
   isLoading: boolean;
   onApplyPreset: (presetKey: string) => void;
   activePreset: string;
+  t: Translations;
 }
 
 export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
@@ -46,7 +48,8 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
   onRunOptimization,
   isLoading,
   onApplyPreset,
-  activePreset
+  activePreset,
+  t
 }) => {
   const isExtreme = waterBudget < 50000 || activePreset === 'extreme';
 
@@ -61,10 +64,10 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
           </div>
           <div>
             <h3 className="text-base font-heading font-extrabold text-slate-900">
-              Farm Target &amp; Water Budget Settings
+              {t.farmTargetTitle}
             </h3>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
-              Set your land size, borewell water availability, and income targets.
+              {t.farmTargetSubtitle}
             </p>
           </div>
         </div>
@@ -72,10 +75,10 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
         {/* Quick Scenario Buttons for Farmers */}
         <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200 self-start sm:self-auto">
           {[
-            { key: 'baseline', label: 'Normal Year' },
-            { key: 'water_20', label: 'Mild Shortage (-20%)' },
-            { key: 'water_50', label: 'Severe Drought (-50%)' },
-            { key: 'extreme', label: 'Crisis' }
+            { key: 'baseline', label: t.normalYear },
+            { key: 'water_20', label: t.mildShortage },
+            { key: 'water_50', label: t.severeDrought },
+            { key: 'extreme', label: t.crisis }
           ].map((p) => {
             const isActive = activePreset === p.key;
             return (
@@ -95,7 +98,7 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
         </div>
       </div>
 
-      {/* Sliders Grid: 2-Column Responsive Layout so nothing is squashed */}
+      {/* Sliders Grid: 2-Column Responsive Layout */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         
         {/* Total Land Slider */}
@@ -103,7 +106,7 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <Ruler className="w-4 h-4 text-emerald-700" /> Total Farm Area
+                <Ruler className="w-4 h-4 text-emerald-700" /> {t.totalFarmArea}
               </span>
               <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-200">
                 {(totalLand * 2.471).toFixed(1)} Acres
@@ -138,7 +141,7 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                 <Droplet className={`w-4 h-4 ${waterBudget < 60000 ? 'text-red-600' : 'text-blue-600'}`} /> 
-                Available Borewell Water
+                {t.availableBorewellWater}
               </span>
               <span className={`text-xs font-bold px-2 py-0.5 rounded-md border ${
                 waterBudget < 60000 ? 'bg-red-100 text-red-800 border-red-200' : 'bg-blue-100 text-blue-800 border-blue-200'
@@ -170,7 +173,7 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <Utensils className="w-4 h-4 text-amber-700" /> Minimum Food Target
+                <Utensils className="w-4 h-4 text-amber-700" /> {t.minimumFoodTarget}
               </span>
               <span className="text-xs font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200">
                 {(foodTarget * 10).toFixed(0)} Quintals
@@ -200,7 +203,7 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <TrendingUp className="w-4 h-4 text-emerald-700" /> Net Profit Target
+                <TrendingUp className="w-4 h-4 text-emerald-700" /> {t.netProfitTarget}
               </span>
               <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-200">
                 ₹{(incomeTarget / (totalLand * 2.471)).toFixed(0)} / Acre
@@ -243,10 +246,10 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
           <div>
             <span className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <Leaf className="w-4 h-4 text-emerald-700" />
-              Crops Eligible for Planting ({selectedCrops.length} Active Candidates)
+              {t.cropsEligibleTitle} ({selectedCrops.length} Active Candidates)
             </span>
             <p className="text-xs text-slate-500 mt-0.5">
-              Click any crop to include or exclude it from your seasonal planning mix.
+              {t.cropsEligibleSubtitle}
             </p>
           </div>
           <span className="text-xs font-semibold text-slate-500">
@@ -319,12 +322,12 @@ export const ScenarioBuilder: React.FC<ScenarioBuilderProps> = ({
           {isLoading ? (
             <>
               <RefreshCw className="w-4 h-4 animate-spin text-white" />
-              <span>Calculating Optimal Farm Allocation...</span>
+              <span>{t.calculating}</span>
             </>
           ) : (
             <>
               <Sparkles className="w-4 h-4 text-emerald-200" />
-              <span>Generate My Crop Plan Now</span>
+              <span>{t.generatePlanBtn}</span>
             </>
           )}
         </button>
