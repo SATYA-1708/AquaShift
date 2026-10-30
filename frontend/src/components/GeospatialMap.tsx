@@ -10,7 +10,9 @@ import {
   PenTool,
   Check,
   RotateCcw,
-  Sparkles
+  Eye,
+  EyeOff,
+  Crosshair
 } from 'lucide-react';
 import { GroundwaterStationInfo, WeatherData } from '../types';
 import { Translations } from '../constants/translations';
@@ -24,6 +26,9 @@ interface GeospatialMapProps {
   weather?: WeatherData;
   onPolygonChange?: (newCoords: [number, number][]) => void;
   onPolygonDrawn?: (newCoords: [number, number][], calculatedAreaHa: number) => void;
+  onLocationPinChange?: (lat: number, lon: number) => void;
+  isCustomDrawn?: boolean;
+  onResetCustomPlot?: () => void;
   allocatedCrops?: { crop_name: string; allocated_ha: number; percentage_of_land: number }[];
   t: Translations;
 }
@@ -37,6 +42,9 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
   weather,
   onPolygonChange,
   onPolygonDrawn,
+  onLocationPinChange,
+  isCustomDrawn = false,
+  onResetCustomPlot,
   allocatedCrops,
   t
 }) => {
@@ -44,10 +52,12 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
   const mapInstanceRef = useRef<L.Map | null>(null);
   const polygonLayerRef = useRef<L.Polygon | null>(null);
   const drawingLayerRef = useRef<L.LayerGroup | null>(null);
+  const farmMarkerRef = useRef<L.Marker | null>(null);
   const stationMarkerRef = useRef<L.Marker | null>(null);
 
   // Layer & Interactive State
   const [mapLayer, setMapLayer] = useState<'satellite' | 'terrain' | 'street'>('satellite');
+  const [showBoundary, setShowBoundary] = useState<boolean>(true);
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const [drawnPoints, setDrawnPoints] = useState<[number, number][]>([]);
 
@@ -67,17 +77,17 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
     }
     area = Math.abs((area * earthRadius * earthRadius) / 2.0);
     const ha = area / 10000;
-    return Math.max(2, Math.min(120, Math.round(ha * 10) / 10));
+    return Math.max(1, Math.min(150, Math.round(ha * 10) / 10));
   };
 
-  // Initialize Map
+  // 1. Initialize Map on Mount
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
     if (!mapInstanceRef.current) {
       const map = L.map(mapContainerRef.current, {
         center: center,
-        zoom: 14,
+        zoom: 16,
         zoomControl: false
       });
 
@@ -87,7 +97,6 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
     }
 
     const map = mapInstanceRef.current;
-    map.setView(center, 14);
 
     // Clear existing tile layers
     map.eachLayer((layer) => {
@@ -112,28 +121,46 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
       maxZoom: 19
     }).addTo(map);
 
-    setTimeout(() => map.invalidateSize(), 100);
-    setTimeout(() => map.invalidateSize(), 400);
-  }, [center, mapLayer]);
+    setTimeout(() => map.invalidateSize(), 150);
+  }, [mapLayer]);
 
-  // Handle Interactive Map Click for Plot Drawing
+  // 2. Fly directly to farm center when location changes
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    map.setView(center, 16);
+  }, [center]);
+
+  // 3. Handle Interactive Clicks (Drawing or Repositioning Pin)
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
     const handleMapClick = (e: L.LeafletMouseEvent) => {
-      if (!isDrawing) return;
-      const newPoint: [number, number] = [e.latlng.lat, e.latlng.lng];
-      setDrawnPoints((prev) => [...prev, newPoint]);
+      if (isDrawing) {
+        const newPoint: [number, number] = [
+          Number(e.latlng.lat.toFixed(6)), 
+          Number(e.latlng.lng.toFixed(6))
+        ];
+        setDrawnPoints((prev) => [...prev, newPoint]);
+      } else {
+        // One-click reposition: User clicks their field on satellite imagery to place pin
+        if (onLocationPinChange) {
+          onLocationPinChange(
+            Number(e.latlng.lat.toFixed(6)), 
+            Number(e.latlng.lng.toFixed(6))
+          );
+        }
+      }
     };
 
     map.on('click', handleMapClick);
     return () => {
       map.off('click', handleMapClick);
     };
-  }, [isDrawing]);
+  }, [isDrawing, onLocationPinChange]);
 
-  // Render Live Preview of Drawn Points
+  // 4. Render Live Drawing Points
   useEffect(() => {
     if (!drawingLayerRef.current || !mapInstanceRef.current) return;
     const dGroup = drawingLayerRef.current;
@@ -204,44 +231,135 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
     }
   };
 
-  // Update Main Polygon and Station Marker
+  // 5. Update Farm Pin Marker, Boundary Polygon, and CGWB Well Marker
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
+    // A. Farm Location Pin (Placed PRECISELY at center)
+    if (farmMarkerRef.current) {
+      map.removeLayer(farmMarkerRef.current);
+    }
+
+    const farmPinIcon = L.divIcon({
+      className: 'custom-farm-pin',
+      html: `
+        <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; transform: translate(-50%, -100%); cursor: grab;">
+          <div style="
+            background: #15803d;
+            color: #ffffff;
+            font-size: 10px;
+            font-weight: 800;
+            padding: 2px 7px;
+            border-radius: 9999px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            border: 1.5px solid #ffffff;
+            white-space: nowrap;
+            margin-bottom: 2px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            letter-spacing: 0.5px;
+          ">
+            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #4ade80;"></span>
+            MY FARM
+          </div>
+          <div style="
+            width: 30px;
+            height: 30px;
+            background: #16a34a;
+            border: 3px solid #ffffff;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          ">
+            <div style="
+              width: 10px;
+              height: 10px;
+              background: #ffffff;
+              border-radius: 50%;
+            "></div>
+          </div>
+        </div>
+      `,
+      iconSize: [0, 0],
+      iconAnchor: [0, 0]
+    });
+
+    const fMarker = L.marker(center, {
+      icon: farmPinIcon,
+      draggable: true,
+      zIndexOffset: 1000
+    }).addTo(map);
+
+    fMarker.bindPopup(`
+      <div style="font-family: 'Inter', sans-serif; padding: 6px; color: #0f172a; min-width: 190px;">
+        <div style="font-weight: 800; color: #15803d; font-size: 13px; margin-bottom: 2px;">📍 Your Farm Location</div>
+        <div style="font-size: 12px; line-height: 1.5; color: #334155;">
+          <b>Coordinates:</b> ${center[0].toFixed(5)}°N, ${center[1].toFixed(5)}°E<br/>
+          <b>Farm Area:</b> ${areaHa} ha (${areaAcres} acres)<br/>
+          <span style="color: #64748b; font-size: 11px;">💡 Drag this pin or click anywhere on satellite view to move your farm.</span>
+        </div>
+      </div>
+    `);
+
+    fMarker.on('dragend', (e: any) => {
+      const latlng = e.target.getLatLng();
+      if (onLocationPinChange) {
+        onLocationPinChange(
+          Number(latlng.lat.toFixed(6)), 
+          Number(latlng.lng.toFixed(6))
+        );
+      }
+    });
+
+    farmMarkerRef.current = fMarker;
+
+    // B. Plot Boundary Polygon
     if (polygonLayerRef.current) {
       map.removeLayer(polygonLayerRef.current);
     }
 
-    if (coordinates.length >= 3 && !isDrawing) {
+    if (showBoundary && coordinates.length >= 3 && !isDrawing) {
       const isSatellite = mapLayer === 'satellite';
       const poly = L.polygon(coordinates, {
         color: isSatellite ? '#22c55e' : '#15803d',
-        weight: 3.5,
-        opacity: 1,
+        weight: 3,
+        opacity: 0.95,
         fillColor: isSatellite ? '#4ade80' : '#16a34a',
-        fillOpacity: isSatellite ? 0.35 : 0.28,
-        dashArray: '6, 6'
+        fillOpacity: isSatellite ? 0.22 : 0.2,
+        dashArray: isCustomDrawn ? undefined : '5, 5'
       }).addTo(map);
 
       poly.bindPopup(`
-        <div style="font-family: 'Inter', sans-serif; padding: 6px; color: #0f172a; min-width: 180px;">
-          <div style="font-weight: 700; color: #15803d; font-size: 14px; margin-bottom: 4px;">Selected Farm Field Cadastre</div>
-          <div style="font-size: 13px; line-height: 1.5;">
+        <div style="font-family: 'Inter', sans-serif; padding: 6px; color: #0f172a; min-width: 190px;">
+          <div style="font-weight: 800; color: #15803d; font-size: 13px; margin-bottom: 4px;">
+            ${isCustomDrawn ? '✏️ Custom Drawn Farm Field' : '📐 Symmetrically Centered Plot'}
+          </div>
+          <div style="font-size: 12px; line-height: 1.5;">
             <b>Total Land:</b> ${areaHa} ha (${areaAcres} acres)<br/>
-            <b>Elevation:</b> 232m ASL (Trans-Gangetic Plain)<br/>
-            <span style="color: #64748b; font-size: 11px;">Verified Satellite Field Boundary</span>
+            <b>Centroid:</b> ${center[0].toFixed(4)}°N, ${center[1].toFixed(4)}°E<br/>
+            <span style="color: #64748b; font-size: 11px;">
+              ${isCustomDrawn ? 'Manually traced field boundary' : 'Centered on your farm pin. Click "✏️ Draw Plot" to trace exact borders.'}
+            </span>
           </div>
         </div>
       `);
 
       polygonLayerRef.current = poly;
-      try {
-        map.fitBounds(poly.getBounds(), { padding: [45, 45], maxZoom: 15 });
-      } catch (e) {}
+
+      // Only fit bounds if user manually drew a custom shape; otherwise stay focused on center at zoom 16
+      if (isCustomDrawn) {
+        try {
+          map.fitBounds(poly.getBounds(), { padding: [40, 40], maxZoom: 17 });
+        } catch (e) {}
+      }
     }
 
-    // Add Groundwater Monitoring Station Marker
+    // C. Groundwater Station Marker
     if (stationMarkerRef.current) {
       map.removeLayer(stationMarkerRef.current);
     }
@@ -252,22 +370,22 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
         html: `
           <div style="
             background: #0284c7;
-            border: 3px solid #ffffff;
+            border: 2.5px solid #ffffff;
             border-radius: 50%;
-            width: 32px;
-            height: 32px;
+            width: 28px;
+            height: 28px;
             display: flex;
             align-items: center;
             justify-content: center;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.35);
           ">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/>
             </svg>
           </div>
         `,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
       });
 
       const stMarker = L.marker([groundwaterStation.latitude, groundwaterStation.longitude], {
@@ -275,11 +393,10 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
       }).addTo(map);
 
       stMarker.bindPopup(`
-        <div style="font-family: 'Inter', sans-serif; padding: 6px; color: #0f172a; min-width: 220px;">
-          <div style="font-weight: 700; color: #0284c7; font-size: 14px; margin-bottom: 4px;">Govt Well: ${groundwaterStation.station_name}</div>
+        <div style="font-family: 'Inter', sans-serif; padding: 6px; color: #0f172a; min-width: 210px;">
+          <div style="font-weight: 700; color: #0284c7; font-size: 13px; margin-bottom: 4px;">Govt Well: ${groundwaterStation.station_name}</div>
           <div style="font-size: 12px; line-height: 1.5;">
-            <b>Water Depth:</b> <span style="color: #dc2626; font-weight: bold;">${groundwaterStation.depth_mbgl} meters below ground</span><br/>
-            <b>Annual Depletion:</b> ${groundwaterStation.historical_trend_slope} m/year<br/>
+            <b>Water Depth:</b> <span style="color: #dc2626; font-weight: bold;">${groundwaterStation.depth_mbgl} m below ground</span><br/>
             <b>Aquifer Status:</b> <span style="background: #fee2e2; color: #991b1b; padding: 1px 6px; border-radius: 4px; font-weight: bold;">${groundwaterStation.classification}</span><br/>
             <b>Distance:</b> ${groundwaterStation.distance_km} km from your plot<br/>
             <span style="color: #64748b; font-size: 10px;">Source: Central Ground Water Board (CGWB)</span>
@@ -290,108 +407,162 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
       stationMarkerRef.current = stMarker;
     }
 
-  }, [coordinates, areaHa, areaAcres, groundwaterStation, mapLayer, isDrawing]);
+  }, [coordinates, center, areaHa, areaAcres, groundwaterStation, mapLayer, isDrawing, showBoundary, isCustomDrawn]);
+
+  const handleRecenter = () => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.setView(center, 16);
+    }
+  };
 
   return (
-    <div className="relative w-full h-[450px] rounded-2xl overflow-hidden farm-card shadow-xs border border-slate-200">
+    <div className="relative w-full h-[460px] rounded-2xl overflow-hidden farm-card shadow-xs border border-slate-200">
       
       {/* Map Canvas */}
       <div 
         ref={mapContainerRef} 
-        style={{ width: '100%', height: '100%', minHeight: '450px', cursor: isDrawing ? 'crosshair' : 'grab' }} 
+        style={{ width: '100%', height: '100%', minHeight: '460px', cursor: isDrawing ? 'crosshair' : 'pointer' }} 
         className="w-full h-full z-0 bg-slate-900" 
       />
 
-      {/* Top Floating HUD: Layer Toggles & Interactive Plot Drawer */}
-      <div className="absolute top-4 left-4 z-10 flex flex-wrap items-center gap-1.5 bg-white/95 backdrop-blur-md p-1.5 rounded-xl border border-slate-200 shadow-sm">
-        <button
-          onClick={() => setMapLayer('satellite')}
-          className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
-            mapLayer === 'satellite' 
-              ? 'bg-emerald-700 text-white shadow-2xs' 
-              : 'text-slate-700 hover:bg-slate-100'
-          }`}
-        >
-          <span>🛰️</span>
-          <span>Satellite</span>
-        </button>
-        <button
-          onClick={() => setMapLayer('terrain')}
-          className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
-            mapLayer === 'terrain' 
-              ? 'bg-emerald-700 text-white shadow-2xs' 
-              : 'text-slate-700 hover:bg-slate-100'
-          }`}
-        >
-          <span>🗺️</span>
-          <span>Farmland</span>
-        </button>
-        <button
-          onClick={() => setMapLayer('street')}
-          className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
-            mapLayer === 'street' 
-              ? 'bg-emerald-700 text-white shadow-2xs' 
-              : 'text-slate-700 hover:bg-slate-100'
-          }`}
-        >
-          <span>🛣️</span>
-          <span>Roads</span>
-        </button>
-
-        <div className="h-4 w-px bg-slate-300 mx-1 hidden sm:block" />
-
-        {/* Interactive Draw My Plot Button */}
-        {!isDrawing ? (
+      {/* Top Left Floating HUD: Layer Toggles & Drawing Tools */}
+      <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
+        
+        {/* Layer Switcher Pill */}
+        <div className="flex items-center gap-1 bg-white/95 backdrop-blur-md p-1 rounded-xl border border-slate-200 shadow-sm w-fit">
           <button
-            onClick={() => {
-              setIsDrawing(true);
-              setDrawnPoints([]);
-            }}
-            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+            onClick={() => setMapLayer('satellite')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+              mapLayer === 'satellite' 
+                ? 'bg-emerald-700 text-white shadow-2xs' 
+                : 'text-slate-700 hover:bg-slate-100'
+            }`}
           >
-            <PenTool className="w-3.5 h-3.5" />
-            <span>{t.drawPlotBtn}</span>
+            <span>🛰️</span>
+            <span>Satellite</span>
           </button>
-        ) : (
-          <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setMapLayer('terrain')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+              mapLayer === 'terrain' 
+                ? 'bg-emerald-700 text-white shadow-2xs' 
+                : 'text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            <span>🗺️</span>
+            <span>Farmland</span>
+          </button>
+          <button
+            onClick={() => setMapLayer('street')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+              mapLayer === 'street' 
+                ? 'bg-emerald-700 text-white shadow-2xs' 
+                : 'text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            <span>🛣️</span>
+            <span>Roads</span>
+          </button>
+        </div>
+
+        {/* Plot Tools Pill */}
+        <div className="flex items-center gap-1.5 bg-white/95 backdrop-blur-md p-1 rounded-xl border border-slate-200 shadow-sm w-fit">
+          {/* Boundary Overlay Toggle (Show/Hide green plot) */}
+          <button
+            onClick={() => setShowBoundary(!showBoundary)}
+            title="Toggle farm plot boundary overlay"
+            className={`px-2 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 border ${
+              showBoundary 
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300' 
+                : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+            }`}
+          >
+            {showBoundary ? <Eye className="w-3.5 h-3.5 text-emerald-700" /> : <EyeOff className="w-3.5 h-3.5 text-slate-500" />}
+            <span>Boundary</span>
+          </button>
+
+          {/* Re-Center Button */}
+          <button
+            onClick={handleRecenter}
+            title="Re-center camera on your farm pin"
+            className="p-1 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer border border-slate-200"
+          >
+            <Crosshair className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Interactive Draw My Plot Button */}
+          {!isDrawing ? (
             <button
-              onClick={handleFinishDrawing}
-              disabled={drawnPoints.length < 3}
-              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition cursor-pointer flex items-center gap-1 disabled:opacity-50"
+              onClick={() => {
+                setIsDrawing(true);
+                setDrawnPoints([]);
+              }}
+              className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition cursor-pointer flex items-center gap-1 shadow-2xs"
             >
-              <Check className="w-3.5 h-3.5" />
-              <span>{t.finishDrawingBtn} ({drawnPoints.length} pts)</span>
+              <PenTool className="w-3 h-3" />
+              <span>{t.drawPlotBtn}</span>
             </button>
+          ) : (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleFinishDrawing}
+                disabled={drawnPoints.length < 3}
+                className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition cursor-pointer flex items-center gap-1 disabled:opacity-50"
+              >
+                <Check className="w-3 h-3" />
+                <span>Finish ({drawnPoints.length})</span>
+              </button>
+              <button
+                onClick={handleCancelDrawing}
+                className="px-2 py-1 rounded-lg text-xs font-bold bg-slate-200 hover:bg-slate-300 text-slate-700 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
+          {isCustomDrawn && onResetCustomPlot && !isDrawing && (
             <button
-              onClick={handleCancelDrawing}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-200 hover:bg-slate-300 text-slate-700 transition cursor-pointer"
+              onClick={onResetCustomPlot}
+              title="Reset to default centered square plot"
+              className="px-2 py-1 rounded-lg text-xs font-medium text-slate-600 hover:text-red-700 hover:bg-red-50 transition cursor-pointer flex items-center gap-1"
             >
-              Cancel
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset</span>
             </button>
-          </div>
-        )}
+          )}
+        </div>
+
       </div>
 
       {/* Floating Prompt Banner when in Drawing Mode */}
       {isDrawing && (
-        <div className="absolute top-16 left-4 right-4 z-10 bg-amber-500/95 text-white px-4 py-2.5 rounded-xl shadow-md text-xs font-bold flex items-center justify-between backdrop-blur-xs">
+        <div className="absolute top-16 left-3 right-3 z-10 bg-amber-500/95 text-white px-4 py-2.5 rounded-xl shadow-md text-xs font-bold flex items-center justify-between backdrop-blur-xs">
           <span>📍 {t.drawPlotPrompt} ({drawnPoints.length} points placed)</span>
           <span className="text-[11px] underline cursor-pointer" onClick={handleCancelDrawing}>Cancel</span>
         </div>
       )}
 
+      {/* Helper Tip Pill at Bottom Center */}
+      {!isDrawing && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 bg-slate-900/85 backdrop-blur-md px-3 py-1.5 rounded-full text-[11px] text-white font-medium shadow-md pointer-events-none hidden md:flex items-center gap-1.5 border border-white/20">
+          <span>💡</span>
+          <span>Click anywhere or drag pin to position on your exact field</span>
+        </div>
+      )}
+
       {/* Right Floating HUD: Acreage & Land Details */}
-      <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 max-w-[240px]">
-        <div className="bg-white/95 backdrop-blur-md p-3.5 rounded-xl border border-slate-200 shadow-sm">
+      <div className="absolute top-3 right-3 z-10 flex flex-col gap-2 max-w-[230px]">
+        <div className="bg-white/95 backdrop-blur-md p-3 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex items-center justify-between text-xs text-slate-500 font-bold mb-1">
             <span className="flex items-center gap-1.5 uppercase text-[10px]">
               <Ruler className="w-3.5 h-3.5 text-emerald-700" /> Farm Field Area
             </span>
-            <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-mono">
-              GPS
+            <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-mono font-bold">
+              {isCustomDrawn ? 'TRACED' : 'CENTERED'}
             </span>
           </div>
-          <div className="flex items-baseline gap-2 mt-1">
+          <div className="flex items-baseline gap-2 mt-0.5">
             <span className="text-2xl font-heading font-extrabold text-slate-900">{areaHa}</span>
             <span className="text-xs font-bold text-slate-600">Hectares</span>
           </div>
@@ -400,12 +571,12 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
           </p>
 
           {allocatedCrops && allocatedCrops.length > 0 && (
-            <div className="mt-2.5 pt-2 border-t border-slate-200">
-              <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Allocated Crops</span>
+            <div className="mt-2 pt-2 border-t border-slate-200">
+              <span className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Crop Mix</span>
               <div className="flex flex-wrap gap-1">
-                {allocatedCrops.slice(0, 4).map((c, i) => (
-                  <span key={i} className="text-[11px] bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded border border-slate-200 font-medium">
-                    {c.crop_name.split(' ')[0]}: <b>{c.allocated_ha}ha</b>
+                {allocatedCrops.slice(0, 3).map((c, i) => (
+                  <span key={i} className="text-[10px] bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded border border-slate-200 font-semibold">
+                    {c.crop_name.split(' ')[0]}: {c.allocated_ha}ha
                   </span>
                 ))}
               </div>
@@ -415,7 +586,7 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
 
         {/* Aquifer Well Indicator Badge */}
         {groundwaterStation && (
-          <div className="bg-white/95 backdrop-blur-md p-2.5 rounded-xl border border-red-200 shadow-sm text-xs">
+          <div className="bg-white/95 backdrop-blur-md p-2 rounded-xl border border-red-200 shadow-sm text-xs">
             <div className="flex items-center gap-1.5 text-red-700 font-bold mb-0.5">
               <Droplet className="w-3.5 h-3.5 fill-current" />
               <span>CGWB Well ({groundwaterStation.distance_km} km)</span>
@@ -432,18 +603,18 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
 
       {/* Bottom Bar: Environmental Info */}
       {weather && (
-        <div className="absolute bottom-4 left-4 z-10 bg-white/95 backdrop-blur-md px-3.5 py-2 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-3 text-xs text-slate-700">
+        <div className="absolute bottom-3 left-3 z-10 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-2.5 text-xs text-slate-700">
           <div className="flex items-center gap-1.5">
-            <CloudSun className="w-4 h-4 text-amber-600" />
+            <CloudSun className="w-3.5 h-3.5 text-amber-600" />
             <span className="text-slate-900 font-bold">{weather.temperature_c}°C</span>
           </div>
           <div className="h-3 w-px bg-slate-300 hidden sm:block" />
           <div>
-            Daily Evaporation: <span className="font-bold text-blue-700">{weather.et0_mm} mm/d</span>
+            ET0: <span className="font-bold text-blue-700">{weather.et0_mm} mm/d</span>
           </div>
           <div className="h-3 w-px bg-slate-300 hidden sm:block" />
           <div>
-            Drought Risk: <span className={`font-bold ${weather.drought_risk === 'High' ? 'text-red-700' : 'text-amber-700'}`}>{weather.drought_risk}</span>
+            Drought: <span className={`font-bold ${weather.drought_risk === 'High' ? 'text-red-700' : 'text-amber-700'}`}>{weather.drought_risk}</span>
           </div>
         </div>
       )}

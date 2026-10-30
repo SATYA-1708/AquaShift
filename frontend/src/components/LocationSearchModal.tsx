@@ -136,12 +136,15 @@ export const LocationSearchModal: React.FC<LocationSearchModalProps> = ({
     // https://www.google.com/maps/@30.2458,75.8421,15z
     // https://maps.google.com/?q=30.2458,75.8421
     // https://www.google.com/maps/place/.../@30.2458,75.8421,17z
+    // ...!3d30.2458!4d75.8421
     // 30.2458, 75.8421
     const atRegex = /@(-?\d+\.\d+),(-?\d+\.\d+)/;
     const qRegex = /[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/;
+    const llRegex = /[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/;
+    const bangRegex = /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/;
     const plainRegex = /(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)/;
 
-    let match = url.match(atRegex) || url.match(qRegex) || url.match(plainRegex);
+    let match = url.match(atRegex) || url.match(qRegex) || url.match(llRegex) || url.match(bangRegex) || url.match(plainRegex);
 
     if (match) {
       const lat = parseFloat(match[1]);

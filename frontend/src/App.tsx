@@ -45,6 +45,21 @@ import {
   fetchAIDecisionExplanation
 } from './services/api';
 
+// Helper: Compute symmetrical square farm boundary centered PRECISELY on lat/lon
+function getSymmetricFarmPlot(lat: number, lon: number, areaHa: number): [number, number][] {
+  const sideMeters = Math.sqrt(Math.max(1, areaHa) * 10000);
+  const halfMeters = sideMeters / 2;
+  const dLat = halfMeters / 111320;
+  const dLon = halfMeters / (111320 * Math.cos((lat * Math.PI) / 180));
+  return [
+    [Number((lat - dLat).toFixed(6)), Number((lon - dLon).toFixed(6))],
+    [Number((lat - dLat).toFixed(6)), Number((lon + dLon).toFixed(6))],
+    [Number((lat + dLat).toFixed(6)), Number((lon + dLon).toFixed(6))],
+    [Number((lat + dLat).toFixed(6)), Number((lon - dLon).toFixed(6))],
+    [Number((lat - dLat).toFixed(6)), Number((lon - dLon).toFixed(6))]
+  ];
+}
+
 export function App() {
   // Navigation & Multi-Language View
   const [currentView, setCurrentView] = useState<'dashboard' | 'map' | 'stress' | 'landing'>('dashboard');
@@ -58,13 +73,10 @@ export function App() {
 
   // Geospatial & Field Coordinates
   const [activeCenter, setActiveCenter] = useState<[number, number]>([30.2458, 75.8421]);
-  const [fieldCoordinates, setFieldCoordinates] = useState<[number, number][]>([
-    [30.2420, 75.8380],
-    [30.2425, 75.8470],
-    [30.2510, 75.8465],
-    [30.2505, 75.8375],
-    [30.2420, 75.8380]
-  ]);
+  const [isCustomDrawn, setIsCustomDrawn] = useState<boolean>(false);
+  const [fieldCoordinates, setFieldCoordinates] = useState<[number, number][]>(() => 
+    getSymmetricFarmPlot(30.2458, 75.8421, 25.0)
+  );
 
   // Scenario Constraints
   const [totalLand, setTotalLand] = useState<number>(25.0);
@@ -178,22 +190,47 @@ export function App() {
   const handleSelectCustomCoordinates = (lat: number, lon: number, label: string) => {
     setLocationLabel(label);
     setActiveCenter([lat, lon]);
-    setFieldCoordinates([
-      [lat - 0.004, lon - 0.004],
-      [lat - 0.003, lon + 0.005],
-      [lat + 0.005, lon + 0.004],
-      [lat + 0.004, lon - 0.005],
-      [lat - 0.004, lon - 0.004]
-    ]);
+    setIsCustomDrawn(false);
+    setFieldCoordinates(getSymmetricFarmPlot(lat, lon, totalLand));
+    void loadLocationData(lat, lon);
+  };
+
+  // Reposition Farm Pin (e.g. by dragging marker or clicking exact field on satellite imagery)
+  const handleLocationPinChange = async (lat: number, lon: number) => {
+    setActiveCenter([lat, lon]);
+    if (!isCustomDrawn) {
+      setFieldCoordinates(getSymmetricFarmPlot(lat, lon, totalLand));
+    }
+    try {
+      const geoData = await fetchReverseGeocode(lat, lon);
+      if (geoData) {
+        setLocationLabel(`${geoData.village || geoData.district}, ${geoData.state}`);
+      }
+    } catch {
+      setLocationLabel(`Farm at ${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E`);
+    }
     void loadLocationData(lat, lon);
   };
 
   // Interactive Custom Farm Boundary Drawn on Map
   const handlePolygonDrawn = (newCoords: [number, number][], calculatedAreaHa: number) => {
+    setIsCustomDrawn(true);
     setFieldCoordinates(newCoords);
     setTotalLand(calculatedAreaHa);
     // Automatically re-run optimization with new drawn land area
     void executePlan(calculatedAreaHa, waterBudget, soil, weather);
+  };
+
+  const handleResetCustomPlot = () => {
+    setIsCustomDrawn(false);
+    setFieldCoordinates(getSymmetricFarmPlot(activeCenter[0], activeCenter[1], totalLand));
+  };
+
+  const handleTotalLandChange = (newLand: number) => {
+    setTotalLand(newLand);
+    if (!isCustomDrawn) {
+      setFieldCoordinates(getSymmetricFarmPlot(activeCenter[0], activeCenter[1], newLand));
+    }
   };
 
   const toggleCrop = (code: string) => {
@@ -341,7 +378,7 @@ export function App() {
                 {/* 1. Farm Target & Water Budget Sliders */}
                 <ScenarioBuilder
                   totalLand={totalLand}
-                  setTotalLand={setTotalLand}
+                  setTotalLand={handleTotalLandChange}
                   waterBudget={waterBudget}
                   setWaterBudget={setWaterBudget}
                   foodTarget={foodTarget}
@@ -380,6 +417,9 @@ export function App() {
                     groundwaterStation={groundwater}
                     weather={weather}
                     onPolygonDrawn={handlePolygonDrawn}
+                    onLocationPinChange={handleLocationPinChange}
+                    isCustomDrawn={isCustomDrawn}
+                    onResetCustomPlot={handleResetCustomPlot}
                     allocatedCrops={optResult?.allocations}
                     t={t}
                   />
