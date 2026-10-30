@@ -29,9 +29,10 @@ class Settings(BaseSettings):
     NOMINATIM_BASE_URL: str = "https://nominatim.openstreetmap.org"
     USER_AGENT: str = "AquaShift-Geospatial-Platform/2.0"
     
-    # Optional LLM integration
+    # Optional LLM & AI integrations
     GEMINI_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -9,6 +9,7 @@ import { CropPredictionStudio } from './components/CropPredictionStudio';
 import { ImpactComparisonCard } from './components/ImpactComparisonCard';
 import { KisanAdvisoryCardModal } from './components/KisanAdvisoryCardModal';
 import { LocationSearchModal } from './components/LocationSearchModal';
+import { KisanChatbot } from './components/KisanChatbot';
 import { AIReportModal } from './components/AIReportModal';
 import { LandingHero } from './components/LandingHero';
 import { 
@@ -571,6 +572,19 @@ export function App() {
         onClose={() => setAiModalOpen(false)}
         reportData={aiReportData}
         isLoading={isAiLoading}
+      />
+
+      {/* Multilingual Voice & Text Kisan AI Chatbot (Groq Powered) */}
+      <KisanChatbot
+        farmContext={{
+          location: locationLabel,
+          total_land_ha: totalLand,
+          water_budget_m3: waterBudget,
+          groundwater_depth_mbgl: groundwater?.depth_mbgl ?? 34.6,
+          recommended_crops: optResult?.allocations.map(a => `${a.crop_name} (${a.allocated_ha} ha)`).join(', ') ?? 'Moong, Mustard, Drip Tomato',
+          estimated_profit_inr: optResult?.total_farmer_net_income_inr ?? 3158336,
+          weather_summary: weather ? `${weather.temperature_c}°C, ET0: ${weather.et0_mm} mm/d, Drought: ${weather.drought_risk}` : undefined
+        }}
       />
 
       {/* Human, Trustworthy Agri Footer */}
