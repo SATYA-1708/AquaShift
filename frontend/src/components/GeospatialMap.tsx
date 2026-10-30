@@ -38,7 +38,8 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
   const mapInstanceRef = useRef<L.Map | null>(null);
   const polygonLayerRef = useRef<L.Polygon | null>(null);
   const stationMarkerRef = useRef<L.Marker | null>(null);
-  const [mapLayer, setMapLayer] = useState<'terrain' | 'satellite' | 'street'>('terrain');
+  // Default to Satellite as requested by user
+  const [mapLayer, setMapLayer] = useState<'satellite' | 'terrain' | 'street'>('satellite');
   const [showOverlays, setShowOverlays] = useState(true);
 
   // Initialize Map
@@ -66,21 +67,20 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
       }
     });
 
-    let tileUrl = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-    let attribution = '&copy; OpenStreetMap &copy; CARTO';
+    let tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+    let attribution = '&copy; Esri &mdash; High-Resolution Satellite';
 
-    if (mapLayer === 'satellite') {
-      tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-      attribution = '&copy; Esri &mdash; Satellite Imagery';
+    if (mapLayer === 'terrain') {
+      tileUrl = 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
+      attribution = '&copy; OpenStreetMap &copy; CARTO';
     } else if (mapLayer === 'street') {
-      tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+      tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
       attribution = '&copy; OpenStreetMap contributors';
     }
 
     L.tileLayer(tileUrl, {
       attribution: attribution,
-      maxZoom: 19,
-      subdomains: 'abcd'
+      maxZoom: 19
     }).addTo(map);
 
     // Multi-timer invalidateSize to guarantee tiles render properly
@@ -101,12 +101,13 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
     }
 
     if (coordinates.length >= 3) {
+      const isSatellite = mapLayer === 'satellite';
       const poly = L.polygon(coordinates, {
-        color: '#15803d',
-        weight: 3,
+        color: isSatellite ? '#22c55e' : '#15803d',
+        weight: 3.5,
         opacity: 1,
-        fillColor: '#16a34a',
-        fillOpacity: 0.3,
+        fillColor: isSatellite ? '#4ade80' : '#16a34a',
+        fillOpacity: isSatellite ? 0.35 : 0.28,
         dashArray: '6, 6'
       }).addTo(map);
 
@@ -116,7 +117,7 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
           <div style="font-size: 13px; line-height: 1.5;">
             <b>Total Land:</b> ${areaHa} ha (${areaAcres} acres)<br/>
             <b>Elevation:</b> 232m ASL (Trans-Gangetic Plain)<br/>
-            <span style="color: #64748b; font-size: 11px;">Verified Farm Polygon Coordinates</span>
+            <span style="color: #64748b; font-size: 11px;">Verified Satellite Field Boundary</span>
           </div>
         </div>
       `);
@@ -145,7 +146,7 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.35);
           ">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/>
@@ -180,7 +181,7 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
       map.invalidateSize();
     }, 200);
 
-  }, [coordinates, areaHa, areaAcres, groundwaterStation]);
+  }, [coordinates, areaHa, areaAcres, groundwaterStation, mapLayer]);
 
   return (
     <div className="relative w-full h-[440px] rounded-2xl overflow-hidden farm-card shadow-xs border border-slate-200">
@@ -188,40 +189,43 @@ export const GeospatialMap: React.FC<GeospatialMapProps> = ({
       <div 
         ref={mapContainerRef} 
         style={{ width: '100%', height: '100%', minHeight: '440px' }} 
-        className="w-full h-full z-0 bg-slate-100" 
+        className="w-full h-full z-0 bg-slate-900" 
       />
 
-      {/* Top Floating HUD: Layer Toggles */}
+      {/* Top Floating HUD: Layer Toggles (Satellite default) */}
       <div className="absolute top-4 left-4 z-10 flex items-center gap-1.5 bg-white/95 backdrop-blur-md p-1.5 rounded-xl border border-slate-200 shadow-sm">
         <button
-          onClick={() => setMapLayer('terrain')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-            mapLayer === 'terrain' 
-              ? 'bg-emerald-700 text-white shadow-2xs' 
-              : 'text-slate-700 hover:bg-slate-100'
-          }`}
-        >
-          Farmland Map
-        </button>
-        <button
           onClick={() => setMapLayer('satellite')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
             mapLayer === 'satellite' 
               ? 'bg-emerald-700 text-white shadow-2xs' 
               : 'text-slate-700 hover:bg-slate-100'
           }`}
         >
-          Satellite
+          <span>🛰️</span>
+          <span>Satellite</span>
+        </button>
+        <button
+          onClick={() => setMapLayer('terrain')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+            mapLayer === 'terrain' 
+              ? 'bg-emerald-700 text-white shadow-2xs' 
+              : 'text-slate-700 hover:bg-slate-100'
+          }`}
+        >
+          <span>🗺️</span>
+          <span>Farmland Map</span>
         </button>
         <button
           onClick={() => setMapLayer('street')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
             mapLayer === 'street' 
               ? 'bg-emerald-700 text-white shadow-2xs' 
               : 'text-slate-700 hover:bg-slate-100'
           }`}
         >
-          Roads
+          <span>🛣️</span>
+          <span>Roads</span>
         </button>
       </div>
 
