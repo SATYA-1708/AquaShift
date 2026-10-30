@@ -1,9 +1,10 @@
-from typing import List, Dict, Any
+from typing import List, Optional
 from app.schemas.schemas import (
     OptimizationRequest,
-    OptimizationResponse,
     StressTestResponse,
-    StressTestScenarioResult
+    StressTestScenarioResult,
+    SoilProfile,
+    WeatherData
 )
 from app.services.optimization_engine import solve_crop_allocation
 
@@ -13,7 +14,9 @@ def run_all_stress_scenarios(
     base_water_budget_m3: float = 140000.0,
     base_food_target_tonnes: float = 35.0,
     base_income_target_inr: float = 850000.0,
-    selected_crops: List[str] = None
+    selected_crops: List[str] = None,
+    soil_profile: Optional[SoilProfile] = None,
+    weather_data: Optional[WeatherData] = None
 ) -> StressTestResponse:
     """
     Executes the 7 canonical stress test profiles sequentially,
@@ -26,6 +29,8 @@ def run_all_stress_scenarios(
         food_target_tonnes=base_food_target_tonnes,
         income_target_inr=base_income_target_inr,
         selected_crop_codes=selected_crops,
+        soil_profile=soil_profile,
+        weather_data=weather_data,
         scenario_name="A. Baseline Scenario"
     )
     baseline_res = solve_crop_allocation(baseline_req)
@@ -104,6 +109,8 @@ def run_all_stress_scenarios(
             food_target_tonnes=p["food"],
             income_target_inr=p["income"],
             selected_crop_codes=selected_crops,
+            soil_profile=soil_profile,
+            weather_data=weather_data,
             scenario_name=p["name"]
         )
         res = solve_crop_allocation(req)

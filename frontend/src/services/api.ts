@@ -69,7 +69,9 @@ export async function runOptimization(
   foodTargetTonnes: number,
   incomeTargetInr: number,
   selectedCrops?: string[],
-  scenarioName: string = "Custom Optimization"
+  scenarioName: string = "Custom Optimization",
+  soil?: SoilProfile,
+  weather?: WeatherData
 ): Promise<OptimizationResponse> {
   const res = await fetch(`${BASE_URL}/optimization/solve`, {
     method: 'POST',
@@ -80,7 +82,9 @@ export async function runOptimization(
       food_target_tonnes: foodTargetTonnes,
       income_target_inr: incomeTargetInr,
       selected_crop_codes: selectedCrops,
-      scenario_name: scenarioName
+      scenario_name: scenarioName,
+      soil_profile: soil,
+      weather_data: weather
     })
   });
   if (!res.ok) throw new Error('Failed to run optimization');
@@ -92,7 +96,9 @@ export async function runStressTestSuite(
   baseWaterM3: number,
   baseFoodTonnes: number,
   baseIncomeInr: number,
-  selectedCrops?: string[]
+  selectedCrops?: string[],
+  soil?: SoilProfile,
+  weather?: WeatherData
 ): Promise<StressTestResponse> {
   const res = await fetch(`${BASE_URL}/scenarios/stress-test`, {
     method: 'POST',
@@ -102,7 +108,9 @@ export async function runStressTestSuite(
       water_budget_m3: baseWaterM3,
       food_target_tonnes: baseFoodTonnes,
       income_target_inr: baseIncomeInr,
-      selected_crop_codes: selectedCrops
+      selected_crop_codes: selectedCrops,
+      soil_profile: soil,
+      weather_data: weather
     })
   });
   if (!res.ok) throw new Error('Failed to run stress test suite');
@@ -114,7 +122,8 @@ export async function fetchAIDecisionExplanation(
   locationSummary: string,
   optResult: OptimizationResponse,
   groundwaterContext?: string,
-  soilContext?: string
+  soilContext?: string,
+  weatherContext?: string
 ): Promise<AIExplanationResponse> {
   const res = await fetch(`${BASE_URL}/insights/explain`, {
     method: 'POST',
@@ -124,15 +133,10 @@ export async function fetchAIDecisionExplanation(
       location_summary: locationSummary,
       optimization_result: optResult,
       groundwater_context: groundwaterContext,
-      soil_context: soilContext
+      soil_context: soilContext,
+      weather_context: weatherContext
     })
   });
   if (!res.ok) throw new Error('Failed to generate AI explanation');
-  return res.json();
-}
-
-export async function fetchDemoPreset(): Promise<any> {
-  const res = await fetch(`${BASE_URL}/demo/preset`);
-  if (!res.ok) throw new Error('Failed to fetch demo preset');
   return res.json();
 }

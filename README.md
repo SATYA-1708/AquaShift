@@ -62,22 +62,14 @@ Agriculture faces a critical, systemic trilemma:
 
 ---
 
-## 4. Hackathon 10-Step Interactive Judging Flow
+## 4. Live Analysis Workflow
 
-AquaShift features a built-in top wizard designed for a **2-minute judging demonstration**:
-
-```
-[Step 1] Target Bhawanigarh, Sangrur (Punjab) -> 25.0 ha Cadastral Boundary loaded.
-[Step 2] Live Ingestion -> Open-Meteo (ET0: 5.2 mm/d), SoilGrids (pH 7.6), CGWB Well (34.6 mbgl, Over-Exploited).
-[Step 3] Baseline Monoculture -> Traditional Paddy-Wheat consuming 256,500 m³ with 76,500 m³ overdraft.
-[Step 4] Run Mathematical Optimizer -> Allocates diversified mix (Moong, Maize, Mustard, Tomato); saves 76k m³ water!
-[Step 5] Moderate Climate Shock -> Cut water by -20% (144,000 m³).
-[Step 6] Dynamic Rebalancing -> Acreage shifts seamlessly into low-water legumes without sacrificing farmer income.
-[Step 7] Extreme Compound Shock -> Slashing water by -80%, hiking income target by +50%, food target by +10%.
-[Step 8] Conflict Detection -> Mathematical targets collide! System engages elastic slack relaxation.
-[Step 9] Bottleneck Diagnosis -> Pinpoints water budget ceiling; outputs closest feasible allocation along Pareto boundary.
-[Step 10] AI Agronomic Synthesis -> Generates comprehensive plain-language audit report exportable to PDF.
-```
+1. Select a farm region or use GPS detection to load the field boundary.
+2. AquaShift fetches live weather, soil, groundwater, and crop catalog data for that location.
+3. Crop yield and water requirements are predicted from the live soil and weather profile.
+4. The optimization engine allocates land across the selected crops using those live predictions.
+5. The stress-testing studio evaluates the same live plan against seven drought and economic scenarios.
+6. The AI explanation engine generates a plain-language audit report from the actual solver result.
 
 ---
 
@@ -142,5 +134,5 @@ Subject to:
 ---
 
 ## 8. License & Acknowledgements
-- Developed for the National/Global Hackathon Competition.
+- Built as an open agricultural decision-support platform.
 - Environmental data: Open-Meteo, Central Ground Water Board (CGWB), ISRIC SoilGrids, Indian Council of Agricultural Research (ICAR), Agmarknet.

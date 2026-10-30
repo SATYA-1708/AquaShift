@@ -57,12 +57,3 @@ def test_optimization_solve_endpoint():
     assert data["total_land_ha"] == 20.0
     assert len(data["allocations"]) > 0
 
-
-def test_demo_preset_endpoint():
-    response = client.get("/api/v1/demo/preset")
-    assert response.status_code == 200
-    data = response.json()
-    assert "region" in data
-    assert "step4_optimized_baseline" in data
-    assert "step6_water_minus_20" in data
-    assert "step8_extreme_conflict" in data

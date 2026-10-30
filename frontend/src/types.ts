@@ -82,6 +82,7 @@ export interface CropDetail {
   calorie_density_kcal_kg: number;
   drought_tolerance: string;
   suitability_score: number;
+  market_center?: string;
 }
 
 export interface CropPredictionItem {
@@ -166,3 +167,80 @@ export interface AIExplanationResponse {
   constraint_bottlenecks_and_recommendations: string;
   full_markdown_report: string;
 }
+
+
+export const DEFAULT_CROPS: CropDetail[] = [
+  {"code": "PADDY", "name": "Paddy (Rice)", "category": "Cereal", "season": "Kharif", "base_yield_tonnes_ha": 4.5, "water_req_m3_ha": 12500.0, "msp_price_per_tonne": 23000.0, "avg_mandi_price_per_tonne": 24500.0, "cultivation_cost_per_ha": 48000.0, "calorie_density_kcal_kg": 3600.0, "drought_tolerance": "Low", "suitability_score": 0.85, "market_center": "Khanna / Sangrur APMC Mandi"},
+  {"code": "WHEAT", "name": "Wheat", "category": "Cereal", "season": "Rabi", "base_yield_tonnes_ha": 4.8, "water_req_m3_ha": 4500.0, "msp_price_per_tonne": 22750.0, "avg_mandi_price_per_tonne": 24200.0, "cultivation_cost_per_ha": 41000.0, "calorie_density_kcal_kg": 3400.0, "drought_tolerance": "Medium", "suitability_score": 0.9, "market_center": "Bathinda APMC Mandi"},
+  {"code": "MAIZE", "name": "Maize (Corn)", "category": "Cereal / Fodder", "season": "Kharif", "base_yield_tonnes_ha": 5.2, "water_req_m3_ha": 3500.0, "msp_price_per_tonne": 20900.0, "avg_mandi_price_per_tonne": 22400.0, "cultivation_cost_per_ha": 34000.0, "calorie_density_kcal_kg": 3650.0, "drought_tolerance": "High", "suitability_score": 0.92, "market_center": "Hoshiarpur / Davanagere Mandi"},
+  {"code": "COTTON", "name": "Bt Cotton", "category": "Cash Crop", "season": "Kharif", "base_yield_tonnes_ha": 2.2, "water_req_m3_ha": 6200.0, "msp_price_per_tonne": 71200.0, "avg_mandi_price_per_tonne": 74500.0, "cultivation_cost_per_ha": 52000.0, "calorie_density_kcal_kg": 0.0, "drought_tolerance": "Medium", "suitability_score": 0.88, "market_center": "Mansa / Rajkot APMC"},
+  {"code": "MOONG", "name": "Green Gram (Moong)", "category": "Pulse / Legume", "season": "Zaid / Kharif", "base_yield_tonnes_ha": 1.4, "water_req_m3_ha": 1800.0, "msp_price_per_tonne": 86800.0, "avg_mandi_price_per_tonne": 92000.0, "cultivation_cost_per_ha": 26000.0, "calorie_density_kcal_kg": 3470.0, "drought_tolerance": "High", "suitability_score": 0.95, "market_center": "Bikaner / Jalgaon APMC"},
+  {"code": "CHICKPEA", "name": "Chickpea (Gram)", "category": "Pulse / Legume", "season": "Rabi", "base_yield_tonnes_ha": 1.9, "water_req_m3_ha": 2200.0, "msp_price_per_tonne": 54400.0, "avg_mandi_price_per_tonne": 58500.0, "cultivation_cost_per_ha": 28000.0, "calorie_density_kcal_kg": 3640.0, "drought_tolerance": "High", "suitability_score": 0.91, "market_center": "Indore / Akola APMC"},
+  {"code": "MUSTARD", "name": "Mustard / Rapeseed", "category": "Oilseed", "season": "Rabi", "base_yield_tonnes_ha": 2.1, "water_req_m3_ha": 2600.0, "msp_price_per_tonne": 56500.0, "avg_mandi_price_per_tonne": 60200.0, "cultivation_cost_per_ha": 27000.0, "calorie_density_kcal_kg": 5080.0, "drought_tolerance": "High", "suitability_score": 0.94, "market_center": "Alwar / Bharatpur Mandi"},
+  {"code": "SUGARCANE", "name": "Sugarcane", "category": "Cash Crop", "season": "Annual", "base_yield_tonnes_ha": 75.0, "water_req_m3_ha": 19500.0, "msp_price_per_tonne": 3400.0, "avg_mandi_price_per_tonne": 3550.0, "cultivation_cost_per_ha": 98000.0, "calorie_density_kcal_kg": 380.0, "drought_tolerance": "Low", "suitability_score": 0.7, "market_center": "Kolhapur / Muzaffarnagar Cooperative"},
+  {"code": "GROUNDNUT", "name": "Groundnut (Peanut)", "category": "Oilseed", "season": "Kharif", "base_yield_tonnes_ha": 2.5, "water_req_m3_ha": 4200.0, "msp_price_per_tonne": 67800.0, "avg_mandi_price_per_tonne": 72500.0, "cultivation_cost_per_ha": 39000.0, "calorie_density_kcal_kg": 5670.0, "drought_tolerance": "Medium", "suitability_score": 0.89, "market_center": "Anantapur / Rajkot APMC"},
+  {"code": "TOMATO", "name": "High-Yield Tomato (Drip)", "category": "Horticulture", "season": "Rabi / Zaid", "base_yield_tonnes_ha": 28.0, "water_req_m3_ha": 3800.0, "msp_price_per_tonne": 14000.0, "avg_mandi_price_per_tonne": 18500.0, "cultivation_cost_per_ha": 82000.0, "calorie_density_kcal_kg": 180.0, "drought_tolerance": "Medium", "suitability_score": 0.86, "market_center": "Kolar / Nashik Pimpalgaon Mandi"}
+];
+
+
+export const DEFAULT_OPTIMIZATION_RESULT: OptimizationResponse = {
+  scenario_name: 'Scenario: baseline',
+  solver_status: 'OPTIMAL',
+  is_feasible_as_requested: true,
+  total_land_ha: 25.0,
+  total_land_allocated_ha: 20.0,
+  total_water_budget_m3: 180000.0,
+  total_water_consumed_m3: 48663.8,
+  total_food_target_tonnes: 45.0,
+  total_food_produced_tonnes: 135.07,
+  total_income_target_inr: 1100000.0,
+  total_farmer_net_income_inr: 3158336.5,
+  water_savings_vs_budget_m3: 131336.2,
+  allocations: [
+    {
+      crop_code: 'MOONG',
+      crop_name: 'Green Gram (Moong)',
+      category: 'Pulse / Legume',
+      allocated_ha: 11.25,
+      percentage_of_land: 45.0,
+      expected_yield_tonnes: 14.74,
+      expected_water_consumed_m3: 21480.8,
+      expected_net_income_inr: 1063350.0,
+      revenue_inr: 1355850.0,
+      cost_inr: 292500.0
+    },
+    {
+      crop_code: 'MUSTARD',
+      crop_name: 'Mustard / Rapeseed',
+      category: 'Oilseed',
+      allocated_ha: 4.25,
+      percentage_of_land: 17.0,
+      expected_yield_tonnes: 8.46,
+      expected_water_consumed_m3: 12066.6,
+      expected_net_income_inr: 394391.5,
+      revenue_inr: 509141.5,
+      cost_inr: 114750.0
+    },
+    {
+      crop_code: 'TOMATO',
+      crop_name: 'High-Yield Tomato (Drip)',
+      category: 'Horticulture',
+      allocated_ha: 4.5,
+      percentage_of_land: 18.0,
+      expected_yield_tonnes: 111.87,
+      expected_water_consumed_m3: 15116.4,
+      expected_net_income_inr: 1700595.0,
+      revenue_inr: 2069595.0,
+      cost_inr: 369000.0
+    }
+  ],
+  diagnosis: {
+    has_conflict: false,
+    binding_constraints: [],
+    water_shortfall_m3: 0.0,
+    food_shortfall_tonnes: 0.0,
+    income_shortfall_inr: 0.0,
+    explanation: 'All environmental, food-production, and income targets were successfully satisfied.'
+  },
+  ai_explanation: undefined
+};

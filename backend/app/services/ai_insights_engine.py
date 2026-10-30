@@ -24,7 +24,7 @@ def generate_agronomic_explanation(request: AIExplanationRequest) -> AIExplanati
     water_saved = res.water_savings_vs_budget_m3
     water_pct_used = round((res.total_water_consumed_m3 / max(1.0, res.total_water_budget_m3)) * 100.0, 1)
 
-    # 1. Executive Summary
+    # 1. Executive Summary`n    # incorporate optional weather context into executive summary if available`n    if request.weather_context:\n        exec_summary = f"{exec_summary} Weather conditions: {request.weather_context}.`n"
     if not diag.has_conflict:
         exec_summary = (
             f"The optimization successfully formulated an environmentally balanced crop portfolio for "

@@ -10,8 +10,7 @@ from app.api.v1.endpoints import (
     optimization,
     scenarios,
     insights,
-    reports,
-    demo
+    reports
 )
 
 api_router = APIRouter()
@@ -27,4 +26,3 @@ api_router.include_router(optimization.router, prefix="/optimization", tags=["OR
 api_router.include_router(scenarios.router, prefix="/scenarios", tags=["Scenario Stress Testing"])
 api_router.include_router(insights.router, prefix="/insights", tags=["AI Explanation Engine"])
 api_router.include_router(reports.router, prefix="/reports", tags=["Audit Reports"])
-api_router.include_router(demo.router, prefix="/demo", tags=["Hackathon Demo Preset"])

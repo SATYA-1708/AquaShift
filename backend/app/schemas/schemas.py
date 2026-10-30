@@ -167,6 +167,8 @@ class OptimizationRequest(BaseModel):
     income_target_inr: float = Field(..., ge=0, description="Minimum farmer net income target in INR")
     selected_crop_codes: Optional[List[str]] = None
     custom_crop_parameters: Optional[List[CropDetail]] = None
+    soil_profile: Optional[SoilProfile] = None
+    weather_data: Optional[WeatherData] = None
     weights: Optional[Dict[str, float]] = Field(
         default={"water": 1.0, "food": 2.0, "income": 2.0, "diversification": 0.5},
         description="Multi-objective normalization weights"
@@ -241,6 +243,7 @@ class AIExplanationRequest(BaseModel):
     optimization_result: OptimizationResponse
     groundwater_context: Optional[str] = None
     soil_context: Optional[str] = None
+    weather_context: Optional[str] = None
 
 
 class AIExplanationResponse(BaseModel):

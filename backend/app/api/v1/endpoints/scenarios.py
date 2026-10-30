@@ -16,5 +16,7 @@ async def run_stress_test(request: OptimizationRequest):
         base_water_budget_m3=request.water_budget_m3,
         base_food_target_tonnes=request.food_target_tonnes,
         base_income_target_inr=request.income_target_inr,
-        selected_crops=request.selected_crop_codes
+        selected_crops=request.selected_crop_codes,
+        soil_profile=request.soil_profile,
+        weather_data=request.weather_data
     )

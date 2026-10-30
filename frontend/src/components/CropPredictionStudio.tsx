@@ -1,11 +1,6 @@
 import React from 'react';
 import { 
-  Cpu, 
-  Droplet, 
-  TrendingUp, 
-  ShieldCheck, 
-  Sparkles,
-  Info
+  Sprout
 } from 'lucide-react';
 import { CropPredictionItem } from '../types';
 
@@ -19,79 +14,81 @@ export const CropPredictionStudio: React.FC<CropPredictionStudioProps> = ({
   modelName
 }) => {
   return (
-    <div className="glass-panel p-5 rounded-2xl border border-slate-700/60 shadow-xl flex flex-col gap-4">
+    <div className="farm-card p-6 flex flex-col gap-5">
       
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
-        <div className="flex items-center gap-2">
-          <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-            <Cpu className="w-5 h-5" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center border border-emerald-200">
+            <Sprout className="w-6 h-6 stroke-[2.2]" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-              FAO-56 Agronomic & ML Prediction Engine
+            <h3 className="text-base font-heading font-extrabold text-slate-900">
+              Crop Yield &amp; Profit Estimator
             </h3>
-            <p className="text-xs text-slate-400">
-              Couples FAO-56 Penman-Monteith crop evapotranspiration with ICAR regional yield response functions
+            <p className="text-xs text-slate-500 font-medium mt-0.5">
+              Based on official ICAR yield data, Open-Meteo local evapotranspiration, and APMC mandi market prices.
             </p>
           </div>
         </div>
 
-        <span className="text-[11px] font-mono text-emerald-400 bg-emerald-950 px-2.5 py-1 rounded-md border border-emerald-800">
-          Model: {modelName}
+        <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200 self-start sm:self-auto">
+          {modelName}
         </span>
       </div>
 
       {/* Predictions Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {predictions.map((p) => {
           return (
             <div 
               key={p.crop_code} 
-              className="bg-slate-900/70 p-3.5 rounded-xl border border-slate-800 flex flex-col justify-between hover:border-slate-700 transition"
+              className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col justify-between hover:border-emerald-300 transition"
             >
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="font-bold text-white text-xs">{p.crop_name}</span>
-                  <span className="text-[10px] font-mono bg-slate-800 text-cyan-300 px-1.5 py-0.5 rounded">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-bold text-slate-900 text-sm">
+                    {p.crop_name}
+                  </span>
+                  <span className="text-[11px] font-semibold bg-white text-slate-700 px-2 py-0.5 rounded border border-slate-200">
                     {p.category}
                   </span>
                 </div>
 
-                <div className="space-y-1.5 text-xs font-mono mt-2">
-                  <div className="flex justify-between text-slate-300">
-                    <span className="text-slate-400">Predicted Yield:</span>
-                    <b className="text-white">{p.predicted_yield_tonnes_ha} t/ha</b>
+                <div className="space-y-1.5 text-xs mt-3">
+                  <div className="flex justify-between text-slate-700">
+                    <span className="text-slate-500">Expected Yield:</span>
+                    <b className="text-slate-900">{p.predicted_yield_tonnes_ha} Tonnes / ha</b>
                   </div>
 
-                  <div className="flex justify-between text-slate-300">
-                    <span className="text-slate-400">Water Demand:</span>
-                    <b className="text-cyan-300">{p.water_req_m3_ha.toLocaleString()} m³/ha</b>
+                  <div className="flex justify-between text-slate-700">
+                    <span className="text-slate-500">Water Demand:</span>
+                    <b className="text-blue-700">{p.water_req_m3_ha.toLocaleString()} m³ / ha</b>
                   </div>
 
-                  <div className="flex justify-between text-slate-300">
-                    <span className="text-slate-400">Gross Revenue:</span>
-                    <span className="text-slate-200">₹{p.estimated_revenue_inr_ha.toLocaleString()}</span>
+                  <div className="flex justify-between text-slate-700">
+                    <span className="text-slate-500">Mandi Price (Gross):</span>
+                    <span className="text-slate-900 font-semibold">₹{p.estimated_revenue_inr_ha.toLocaleString()}</span>
                   </div>
 
-                  <div className="flex justify-between text-slate-300">
-                    <span className="text-slate-400">Cultivation Cost:</span>
-                    <span className="text-slate-400">₹{p.cultivation_cost_inr_ha.toLocaleString()}</span>
+                  <div className="flex justify-between text-slate-700">
+                    <span className="text-slate-500">Cultivation Cost:</span>
+                    <span className="text-slate-500">₹{p.cultivation_cost_inr_ha.toLocaleString()}</span>
                   </div>
 
-                  <div className="flex justify-between text-emerald-400 pt-1 border-t border-slate-800">
-                    <span>Net Income:</span>
-                    <b>₹{p.estimated_net_income_inr_ha.toLocaleString()} / ha</b>
+                  <div className="flex justify-between text-emerald-800 pt-2 border-t border-slate-200 font-bold text-sm">
+                    <span>Net Profit / ha:</span>
+                    <span>₹{p.estimated_net_income_inr_ha.toLocaleString()}</span>
                   </div>
                 </div>
               </div>
 
               {/* Suitability & Confidence */}
-              <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono">
-                <span className="text-slate-400">
-                  Suitability: <b className="text-emerald-400">{(p.suitability_score * 100).toFixed(0)}%</b>
+              <div className="mt-3.5 pt-2.5 border-t border-slate-200 flex items-center justify-between text-xs">
+                <span className="text-slate-600">
+                  Suitability: <b className="text-emerald-700 font-bold">{(p.suitability_score * 100).toFixed(0)}%</b>
                 </span>
-                <span className="text-slate-500">
+                <span className="text-slate-400 font-medium">
                   Conf: {(p.confidence * 100).toFixed(0)}%
                 </span>
               </div>

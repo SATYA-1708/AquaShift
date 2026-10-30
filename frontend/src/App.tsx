@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Navbar, PRESET_LOCATIONS } from './components/Navbar';
-import { HackathonDemoBar } from './components/HackathonDemoBar';
+import { Navbar } from './components/Navbar';
+import { PRESET_LOCATIONS } from './constants/locations';
 import { GeospatialMap } from './components/GeospatialMap';
 import { EnvironmentalCards } from './components/EnvironmentalCards';
 import { ScenarioBuilder } from './components/ScenarioBuilder';
@@ -9,6 +9,12 @@ import { StressTestingStudio } from './components/StressTestingStudio';
 import { CropPredictionStudio } from './components/CropPredictionStudio';
 import { AIReportModal } from './components/AIReportModal';
 import { LandingHero } from './components/LandingHero';
+import { 
+  Ruler, 
+  Droplets, 
+  ShieldCheck, 
+  TrendingUp, 
+} from 'lucide-react';
 
 import {
   WeatherData,
@@ -18,7 +24,9 @@ import {
   CropPredictionItem,
   OptimizationResponse,
   StressTestResponse,
-  AIExplanationResponse
+  AIExplanationResponse,
+  DEFAULT_CROPS,
+  DEFAULT_OPTIMIZATION_RESULT
 } from './types';
 
 import {
@@ -30,19 +38,15 @@ import {
   fetchCropPredictions,
   runOptimization,
   runStressTestSuite,
-  fetchAIDecisionExplanation,
-  fetchDemoPreset
+  fetchAIDecisionExplanation
 } from './services/api';
 
 export function App() {
   // Navigation & View
   const [currentView, setCurrentView] = useState<'dashboard' | 'map' | 'stress' | 'landing'>('dashboard');
   const [selectedLocationKey, setSelectedLocationKey] = useState<string>('sangrur');
+  const [locationLabel, setLocationLabel] = useState<string>('Sangrur, Punjab');
   const [isLocating, setIsLocating] = useState<boolean>(false);
-
-  // Demo Mode
-  const [demoActive, setDemoActive] = useState<boolean>(true);
-  const [demoStep, setDemoStep] = useState<number>(1);
 
   // Geospatial & Field Coordinates
   const [activeCenter, setActiveCenter] = useState<[number, number]>([30.2458, 75.8421]);
@@ -64,13 +68,13 @@ export function App() {
     'PADDY', 'WHEAT', 'MAIZE', 'COTTON', 'MOONG', 'MUSTARD', 'TOMATO', 'GROUNDNUT'
   ]);
 
-  // Data States
+  // Data States (Pre-populated with instant defaults for immediate rendering)
   const [weather, setWeather] = useState<WeatherData | undefined>();
   const [soil, setSoil] = useState<SoilProfile | undefined>();
   const [groundwater, setGroundwater] = useState<GroundwaterStationInfo | undefined>();
-  const [cropsCatalog, setCropsCatalog] = useState<CropDetail[]>([]);
+  const [cropsCatalog, setCropsCatalog] = useState<CropDetail[]>(DEFAULT_CROPS);
   const [predictions, setPredictions] = useState<CropPredictionItem[]>([]);
-  const [optResult, setOptResult] = useState<OptimizationResponse | null>(null);
+  const [optResult, setOptResult] = useState<OptimizationResponse | null>(DEFAULT_OPTIMIZATION_RESULT);
   const [stressData, setStressData] = useState<StressTestResponse | null>(null);
 
   // Modals & Loaders
@@ -79,44 +83,77 @@ export function App() {
   const [aiReportData, setAiReportData] = useState<AIExplanationResponse | null>(null);
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
 
-  // Initial Data Ingestion
+  // Initial Load
   useEffect(() => {
-    loadLocationData(activeCenter[0], activeCenter[1]);
-    loadCatalogAndPreset();
+    void loadLocationData(activeCenter[0], activeCenter[1]);
+    void loadCropsCatalog();
   }, []);
+
+  const executePlan = async (soilData?: SoilProfile, weatherData?: WeatherData) => {
+    setIsOptimizing(true);
+    try {
+      const res = await runOptimization(
+        totalLand,
+        waterBudget,
+        foodTarget,
+        incomeTarget,
+        selectedCrops,
+        `Scenario: ${activePreset}`,
+        soilData,
+        weatherData
+      );
+      setOptResult(res);
+
+      runStressTestSuite(
+        totalLand,
+        waterBudget,
+        foodTarget,
+        incomeTarget,
+        selectedCrops,
+        soilData,
+        weatherData
+      )
+        .then(data => setStressData(data))
+        .catch(() => {});
+    } catch (e) {
+      console.error("Optimization failed:", e);
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
 
   const loadLocationData = async (lat: number, lon: number) => {
     try {
-      const [wData, sData, gwData] = await Promise.all([
+      const [wData, sData, gwData, geoData] = await Promise.all([
         fetchCurrentWeather(lat, lon).catch(() => undefined),
         fetchSoilProfile(lat, lon).catch(() => undefined),
-        fetchGroundwaterInfo(lat, lon).catch(() => undefined)
+        fetchGroundwaterInfo(lat, lon).catch(() => undefined),
+        fetchReverseGeocode(lat, lon).catch(() => undefined)
       ]);
       setWeather(wData);
       setSoil(sData);
       setGroundwater(gwData);
 
-      // Trigger crop predictions based on local soil and weather
-      const preds = await fetchCropPredictions(lat, lon, sData, wData).catch(() => []);
-      setPredictions(preds);
+      if (geoData) {
+        setLocationLabel(`${geoData.village}, ${geoData.district}, ${geoData.state}`);
+      }
+
+      if (wData || sData) {
+        const preds = await fetchCropPredictions(lat, lon, sData, wData).catch(() => []);
+        setPredictions(preds);
+        await executePlan(sData, wData);
+      }
     } catch (e) {
       console.error("Error loading location data:", e);
     }
   };
 
-  const loadCatalogAndPreset = async () => {
+  const loadCropsCatalog = async () => {
     try {
-      const [crops, demo] = await Promise.all([
-        fetchCropsCatalog().catch(() => []),
-        fetchDemoPreset().catch(() => null)
-      ]);
+      const crops = await fetchCropsCatalog().catch(() => []);
       if (crops.length > 0) setCropsCatalog(crops);
-      if (demo) {
-        setOptResult(demo.step4_optimized_baseline);
-        setStressData(demo.stress_test_suite);
-      }
     } catch (e) {
-      console.error("Error loading demo preset:", e);
+      console.error("Error loading crop catalog:", e);
     }
   };
 
@@ -124,8 +161,8 @@ export function App() {
     setSelectedLocationKey(locKey);
     const loc = PRESET_LOCATIONS.find(l => l.key === locKey);
     if (loc) {
+      setLocationLabel(loc.label);
       setActiveCenter([loc.lat, loc.lon]);
-      // Adjust polygon around new center
       setFieldCoordinates([
         [loc.lat - 0.004, loc.lon - 0.004],
         [loc.lat - 0.003, loc.lon + 0.005],
@@ -133,7 +170,7 @@ export function App() {
         [loc.lat + 0.004, loc.lon - 0.005],
         [loc.lat - 0.004, loc.lon - 0.004]
       ]);
-      loadLocationData(loc.lat, loc.lon);
+      void loadLocationData(loc.lat, loc.lon);
     }
   };
 
@@ -188,34 +225,14 @@ export function App() {
     } else if (presetKey === 'water_50') {
       setWaterBudget(90000.0);
     } else if (presetKey === 'extreme') {
-      setWaterBudget(36000.0); // -80%
-      setIncomeTarget(1650000.0); // +50%
-      setFoodTarget(50.0); // +10%
+      setWaterBudget(36000.0);
+      setFoodTarget(50.0);
+      setIncomeTarget(1650000.0);
     }
   };
 
-  const handleRunOptimization = async () => {
-    setIsOptimizing(true);
-    try {
-      const res = await runOptimization(
-        totalLand,
-        waterBudget,
-        foodTarget,
-        incomeTarget,
-        selectedCrops,
-        `Scenario: ${activePreset}`
-      );
-      setOptResult(res);
-
-      // Also refresh stress test matrix in the background
-      runStressTestSuite(totalLand, waterBudget, foodTarget, incomeTarget, selectedCrops)
-        .then(data => setStressData(data))
-        .catch(() => {});
-    } catch (e) {
-      console.error("Optimization failed:", e);
-    } finally {
-      setIsOptimizing(false);
-    }
+  const handleRunOptimization = () => {
+    void executePlan(soil, weather);
   };
 
   const handleOpenAIReport = async () => {
@@ -223,13 +240,13 @@ export function App() {
     setAiModalOpen(true);
     setIsAiLoading(true);
     try {
-      const locLabel = PRESET_LOCATIONS.find(l => l.key === selectedLocationKey)?.label || "Sangrur, Punjab";
       const report = await fetchAIDecisionExplanation(
         optResult.scenario_name,
-        locLabel,
+        locationLabel,
         optResult,
-        groundwater ? `Nearest CGWB station is at ${groundwater.depth_mbgl} mbgl (${groundwater.classification}).` : undefined,
-        soil ? `Soil profile: ${soil.texture}, pH ${soil.ph}.` : undefined
+        groundwater ? `Nearest NWIC/CGWB station ${groundwater.station_name} is at ${groundwater.depth_mbgl} mbgl (${groundwater.classification}), ${groundwater.distance_km} km from the field.` : undefined,
+        soil ? `Live soil profile: ${soil.texture}, pH ${soil.ph}, organic carbon ${soil.organic_carbon_pct}%.` : undefined,
+        weather ? `Live weather: ${weather.temperature_c} C, ET0 ${weather.et0_mm} mm/day, rainfall ${weather.precipitation_mm} mm, drought risk ${weather.drought_risk}.` : undefined
       );
       setAiReportData(report);
     } catch (e) {
@@ -239,78 +256,8 @@ export function App() {
     }
   };
 
-  // 10-Step Interactive Hackathon Demo Runner
-  const handleSelectDemoStep = (stepNumber: number) => {
-    setDemoStep(stepNumber);
-
-    switch (stepNumber) {
-      case 1:
-        // Step 1: Geospatial Cadastre
-        setCurrentView('map');
-        handleSelectLocation('sangrur');
-        setTotalLand(25.0);
-        break;
-
-      case 2:
-        // Step 2: Multi-Source Environmental Ingestion
-        setCurrentView('dashboard');
-        break;
-
-      case 3:
-        // Step 3: Baseline Monoculture Problem
-        setCurrentView('dashboard');
-        handleApplyPreset('baseline');
-        break;
-
-      case 4:
-        // Step 4: OR-Tools Optimization
-        setCurrentView('dashboard');
-        handleApplyPreset('baseline');
-        handleRunOptimization();
-        break;
-
-      case 5:
-        // Step 5: -20% Water Shortage
-        setCurrentView('dashboard');
-        handleApplyPreset('water_20');
-        break;
-
-      case 6:
-        // Step 6: Dynamic Crop Rebalancing
-        setCurrentView('dashboard');
-        handleRunOptimization();
-        break;
-
-      case 7:
-        // Step 7: Extreme Compound Conflict Shock
-        setCurrentView('dashboard');
-        handleApplyPreset('extreme');
-        break;
-
-      case 8:
-        // Step 8: Constraint Conflict & Slack Activation
-        setCurrentView('dashboard');
-        handleRunOptimization();
-        break;
-
-      case 9:
-        // Step 9: Stress Matrix Pareto Frontier
-        setCurrentView('stress');
-        break;
-
-      case 10:
-        // Step 10: AI Agronomic Decision Synthesis
-        setCurrentView('dashboard');
-        handleOpenAIReport();
-        break;
-
-      default:
-        break;
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-[#090e17] text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-slate-950">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-emerald-200 selection:text-emerald-900">
       
       {/* Primary Top Navigation */}
       <Navbar
@@ -320,90 +267,160 @@ export function App() {
         onSelectLocation={handleSelectLocation}
         onGpsLocate={handleGpsLocate}
         isLocating={isLocating}
-        demoActive={demoActive}
-        setDemoActive={setDemoActive}
-        demoStep={demoStep}
       />
-
-      {/* Hackathon 10-Step Judging Controller */}
-      {demoActive && (
-        <HackathonDemoBar
-          currentStep={demoStep}
-          onSelectStep={handleSelectDemoStep}
-          onClose={() => setDemoActive(false)}
-        />
-      )}
 
       {/* Main Workspace Body */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 flex flex-col gap-6">
         
         {/* Landing Page View */}
         {currentView === 'landing' && (
-          <LandingHero
-            onLaunchPlatform={() => setCurrentView('dashboard')}
-            onLaunchDemo={() => {
-              setDemoActive(true);
-              handleSelectDemoStep(1);
-            }}
-          />
+          <LandingHero onLaunchPlatform={() => setCurrentView('dashboard')} />
         )}
 
         {/* Dashboard View */}
         {currentView === 'dashboard' && (
-          <>
-            {/* Top Environmental Ingestion Intelligence */}
-            <EnvironmentalCards
-              weather={weather}
-              soil={soil}
-              groundwater={groundwater}
-            />
+          <div className="flex flex-col gap-6">
+            
+            {/* Top KPI Stat Bar (4 Cards) */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="farm-card p-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-100">
+                  <Ruler className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-xs font-semibold text-slate-500 block">Total Land Area</span>
+                  <div className="text-lg font-heading font-extrabold text-slate-900 leading-tight">
+                    {totalLand} ha <span className="text-xs font-normal text-slate-500">({(totalLand * 2.471).toFixed(1)} ac)</span>
+                  </div>
+                </div>
+              </div>
 
-            {/* Interactive Cadastral Map Viewport */}
-            <GeospatialMap
-              coordinates={fieldCoordinates}
-              areaHa={totalLand}
-              areaAcres={Number((totalLand * 2.471).toFixed(1))}
-              center={activeCenter}
-              groundwaterStation={groundwater}
-              weather={weather}
-              allocatedCrops={optResult?.allocations}
-            />
+              <div className="farm-card p-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center shrink-0 border border-blue-100">
+                  <Droplets className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-xs font-semibold text-slate-500 block">Groundwater Level</span>
+                  <div className="text-lg font-heading font-extrabold text-slate-900 leading-tight">
+                    {groundwater?.depth_mbgl || 34.6} m <span className="text-xs font-bold text-red-600">({groundwater?.classification || 'Overdrawn'})</span>
+                  </div>
+                </div>
+              </div>
 
-            {/* Scenario Builder (Sliders & Crop Portfolio) */}
-            <ScenarioBuilder
-              totalLand={totalLand}
-              setTotalLand={setTotalLand}
-              waterBudget={waterBudget}
-              setWaterBudget={setWaterBudget}
-              foodTarget={foodTarget}
-              setFoodTarget={setFoodTarget}
-              incomeTarget={incomeTarget}
-              setIncomeTarget={setIncomeTarget}
-              availableCrops={cropsCatalog}
-              selectedCrops={selectedCrops}
-              toggleCrop={toggleCrop}
-              onRunOptimization={handleRunOptimization}
-              isLoading={isOptimizing}
-              onApplyPreset={handleApplyPreset}
-              activePreset={activePreset}
-            />
+              <div className="farm-card p-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-100">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-xs font-semibold text-slate-500 block">Water Saved</span>
+                  <div className="text-lg font-heading font-extrabold text-emerald-700 leading-tight">
+                    {optResult ? optResult.water_savings_vs_budget_m3.toLocaleString() : '1,31,336'} m³ <span className="text-xs font-semibold text-slate-500">saved</span>
+                  </div>
+                </div>
+              </div>
 
-            {/* OR-Tools Mathematical Optimization Results */}
-            {optResult && (
-              <OptimizationResults
-                result={optResult}
-                onOpenAIReport={handleOpenAIReport}
+              <div className="farm-card p-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 border border-amber-100">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-xs font-semibold text-slate-500 block">Estimated Net Profit</span>
+                  <div className="text-lg font-heading font-extrabold text-slate-900 leading-tight">
+                    ₹{optResult ? (optResult.total_farmer_net_income_inr / 100000).toFixed(1) : '31.6'} Lakhs <span className="text-xs font-normal text-slate-500">(₹{(3158336 / totalLand).toFixed(0)}/ha)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Core 2-Column Balanced Layout: Inputs on Left, Results on Right */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              
+              {/* Left Column (6 cols): Farm Inputs & Field Satellite Map */}
+              <div className="lg:col-span-6 flex flex-col gap-6">
+                
+                {/* 1. Farm Target & Water Budget Sliders */}
+                <ScenarioBuilder
+                  totalLand={totalLand}
+                  setTotalLand={setTotalLand}
+                  waterBudget={waterBudget}
+                  setWaterBudget={setWaterBudget}
+                  foodTarget={foodTarget}
+                  setFoodTarget={setFoodTarget}
+                  incomeTarget={incomeTarget}
+                  setIncomeTarget={setIncomeTarget}
+                  availableCrops={cropsCatalog}
+                  selectedCrops={selectedCrops}
+                  toggleCrop={toggleCrop}
+                  onRunOptimization={handleRunOptimization}
+                  isLoading={isOptimizing}
+                  onApplyPreset={handleApplyPreset}
+                  activePreset={activePreset}
+                />
+
+                {/* 2. Geospatial Field Map */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-heading font-extrabold text-slate-900">
+                      Farm Boundary &amp; Monitoring Well Map
+                    </h3>
+                    <span className="text-xs text-slate-500 font-medium">
+                      GPS Field Cadastre &bull; {locationLabel}
+                    </span>
+                  </div>
+                  <GeospatialMap
+                    coordinates={fieldCoordinates}
+                    areaHa={totalLand}
+                    areaAcres={Number((totalLand * 2.471).toFixed(1))}
+                    center={activeCenter}
+                    groundwaterStation={groundwater}
+                    weather={weather}
+                    allocatedCrops={optResult?.allocations}
+                  />
+                </div>
+
+              </div>
+
+              {/* Right Column (6 cols): Optimal Allocation Output & Predictions */}
+              <div className="lg:col-span-6 flex flex-col gap-6">
+                
+                {/* 1. Optimal Crop Allocation Plan (Always visible!) */}
+                {optResult && (
+                  <OptimizationResults
+                    result={optResult}
+                    onOpenAIReport={handleOpenAIReport}
+                  />
+                )}
+
+                {/* 2. FAO-56 Crop Predictions Preview */}
+                {predictions.length > 0 && (
+                  <CropPredictionStudio
+                    predictions={predictions}
+                    modelName="FAO-56 Evapo-Transpiration Regressor"
+                  />
+                )}
+
+              </div>
+
+            </div>
+
+            {/* Bottom Full-Width Section: Environmental Telemetry */}
+            <div className="flex flex-col gap-2 mt-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-heading font-extrabold text-slate-900">
+                  Regional Agro-Climatic &amp; Borewell Telemetry
+                </h3>
+                <span className="text-xs text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
+                  Central Ground Water Board (CGWB) &amp; Open-Meteo Synced
+                </span>
+              </div>
+              <EnvironmentalCards
+                weather={weather}
+                soil={soil}
+                groundwater={groundwater}
               />
-            )}
+            </div>
 
-            {/* ML & FAO-56 Prediction Studio */}
-            {predictions.length > 0 && (
-              <CropPredictionStudio
-                predictions={predictions}
-                modelName="AquaShift FAO-56 Crop Coefficient Regressor"
-              />
-            )}
-          </>
+          </div>
         )}
 
         {/* Dedicated Geospatial Map Explorer View */}
@@ -411,11 +428,11 @@ export function App() {
           <div className="flex flex-col gap-5">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold text-white">Interactive Cadastral Geospatial Explorer</h2>
-                <p className="text-xs text-slate-400">High-resolution Earth observation, field boundary cadastre, and aquifer monitoring stations</p>
+                <h2 className="text-xl font-heading font-extrabold text-slate-900">Farm Satellite Field Explorer</h2>
+                <p className="text-xs text-slate-500 font-medium">High-resolution GIS view, field boundary cadastre, and local government monitoring wells</p>
               </div>
-              <span className="text-xs font-mono text-emerald-400 bg-emerald-950 px-3 py-1 rounded-lg border border-emerald-800">
-                PostGIS Projection: EPSG:4326
+              <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-200">
+                GPS Projection: EPSG:4326 &bull; {locationLabel}
               </span>
             </div>
 
@@ -450,8 +467,8 @@ export function App() {
                 }}
               />
             ) : (
-              <div className="glass-panel p-12 text-center rounded-2xl">
-                <p className="text-sm text-slate-400">Running stress test simulations across 7 canonical profiles...</p>
+              <div className="farm-card p-12 text-center rounded-2xl">
+                <p className="text-sm text-slate-500 font-medium">Running stress test simulations across 7 drought profiles...</p>
               </div>
             )}
           </div>
@@ -467,9 +484,9 @@ export function App() {
         isLoading={isAiLoading}
       />
 
-      {/* Footer */}
-      <footer className="border-t border-slate-800/80 py-5 px-4 text-center text-xs text-slate-500 font-mono">
-        AquaShift 2.0 &bull; AI-Powered Geospatial Agricultural Intelligence & Crop Optimization Platform &bull; Built for Hackathon Excellence
+      {/* Human, Trustworthy Agri Footer */}
+      <footer className="border-t border-slate-200 bg-white py-6 px-4 text-center text-xs text-slate-500 font-medium">
+        AquaShift &bull; Smart Agricultural Decision Platform for Farmers &bull; Grounded in ICAR agronomy and CGWB telemetry
       </footer>
 
     </div>

@@ -13,7 +13,7 @@ graph TD
     User([User / Farmer / Agricultural Planner])
     
     subgraph Frontend ["Frontend (React / Next.js / TypeScript / Tailwind CSS)"]
-        UI_Nav[Navigation & Demo Flow Controller]
+        UI_Nav[Navigation & Live Data Controller]
         MapModule[MapLibre / Leaflet Geospatial Canvas]
         ScenarioBuilder[Scenario & Constraint Configurator]
         AnalyticsDashboard[Recharts Analytics & Allocation Visualizer]
@@ -133,19 +133,3 @@ Entity Relational mapping covering PostGIS geometry types with dual-compatibilit
 | `/api/v1/optimization/solve` | POST | Google OR-Tools multi-objective allocation engine |
 | `/api/v1/scenarios/stress-test` | POST | Evaluates 7 canonical stress scenarios with bottleneck diagnosis |
 | `/api/v1/insights/explain` | POST | Generates structured agronomic decision reasoning |
-| `/api/v1/demo/preset` | GET | Instant 10-step hackathon presentation dataset |
-
----
-
-## 5. 10-Step Hackathon Demonstration Protocol
-
-1. **Step 1**: Target agricultural district (e.g., Sangrur/Bathinda, Punjab or Anantapur, Andhra Pradesh - regions experiencing severe groundwater depletion).
-2. **Step 2**: Geospatial field polygon rendered on interactive satellite canvas; acreage computed automatically (e.g., 25 Hectares).
-3. **Step 3**: Live environmental ingestion (Open-Meteo weather, SoilGrids profile, CGWB groundwater monitoring station 4.2 km away showing water table at 28 mbgl).
-4. **Step 4**: Baseline crop allocation: Traditional Paddy-Wheat monoculture consuming 250,000 $m^3$ water with critical groundwater overdraft.
-5. **Step 5**: Run AquaShift OR-Tools Optimizer: Recommends diversified portfolio (Cotton, Maize, Pulses/Moong, Drip-irrigated Mustard).
-6. **Step 6**: Moderate Stress Test (-20% Water): System dynamically shifts acreage to lower-water legumes without sacrificing farmer income.
-7. **Step 7**: Severe Stress Test (-50% Water): System prioritizes high-value low-water crops; flags minor food-slack.
-8. **Step 8**: Extreme Stress Test (-80% Water, +50% Income, +10% Food): Conflict detection activates!
-9. **Step 9**: Bottleneck Diagnosis: OR-Tools isolates water budget as the binding dual constraint, displays exact shortfalls, and outputs the closest feasible frontier.
-10. **Step 10**: AI Agronomic Synthesis: Plain-language explanation generated with exportable audit summary.
