@@ -11,13 +11,12 @@ import {
   Sparkles, 
   Bot, 
   User, 
-  ChevronDown, 
   RefreshCw,
   ExternalLink,
   CheckCircle2,
-  AlertCircle,
-  HelpCircle,
-  Languages
+  Languages,
+  Headphones,
+  Radio
 } from 'lucide-react';
 import { 
   ChatMessage, 
@@ -37,9 +36,9 @@ interface KisanChatbotProps {
 
 const QUICK_PROMPTS = [
   { label: "💧 Paddy Water Savings", prompt: "How can I reduce water consumption on Paddy without losing yield?" },
-  { label: "🌾 Moong (Green Gram) Profit", prompt: "Why is Moong/Green Gram recommended and how much net income can it generate per hectare?" },
-  { label: "🚜 PM-KUSUM & Drip Subsidy", prompt: "What government subsidies are available for solar pumps (PM-KUSUM) and drip irrigation in my state?" },
-  { label: "🌧️ Borewell Depletion Advisory", prompt: "My local groundwater is over 34 meters deep. What emergency crop shifting strategy should I adopt?" }
+  { label: "🌾 Moong (Green Gram) Profit", prompt: "Why is Moong recommended and how much net income can it generate per hectare?" },
+  { label: "🚜 PM-KUSUM & Drip Subsidy", prompt: "What government subsidies are available for solar pumps and drip irrigation in my state?" },
+  { label: "🌧️ Borewell Depletion Strategy", prompt: "My local groundwater is over 34 meters deep. What crop shifting strategy should I adopt?" }
 ];
 
 const VOICE_LANGUAGES = [
@@ -50,13 +49,47 @@ const VOICE_LANGUAGES = [
   { code: 'te-IN', label: 'తెలుగు (Telugu)' }
 ];
 
+/**
+ * Strips all markdown symbols, asterisks, bullet dashes, hash titles, 
+ * markdown tables, HTML tags, and emojis so Text-to-Speech speaks like a human.
+ */
+function cleanTextForSpeech(raw: string): string {
+  return raw
+    // Remove emojis
+    .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F1E6}-\u{1F1FF}]/gu, '')
+    // Remove Markdown tables (| column | column |)
+    .replace(/\|.*?\|/g, ' ')
+    .replace(/[-:]{3,}/g, ' ')
+    // Remove bold/italic asterisks & underscores
+    .replace(/\*+/g, '')
+    .replace(/_+/g, '')
+    // Remove markdown headers
+    .replace(/^#+\s+/gm, '')
+    // Remove markdown links e.g. [text](url) -> text
+    .replace(/\[(.*?)\]\(.*?\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, '')
+    // Remove code blocks
+    .replace(/`{1,3}.*?`{1,3}/gs, '')
+    // Replace bullet points and dashes
+    .replace(/^\s*[-•*]\s+/gm, '')
+    // Remove HTML tags
+    .replace(/<[^>]*>/g, '')
+    // Clean up excessive whitespace
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export const KisanChatbot: React.FC<KisanChatbotProps> = ({ farmContext }) => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
       role: 'assistant',
-      content: `🙏 **Sat Sri Akal / Namaste! (ਸਤਿ ਸ਼੍ਰੀ ਅਕਾਲ / नमस्ते)**\n\nI am **Kisan AI Mitra**, your personal agricultural advisor powered by Groq LLaMA-3.3.\n\nI have reviewed your farm at **${farmContext.location || 'Punjab'}** (${farmContext.total_land_ha || 25} ha, water budget: ${((farmContext.water_budget_m3 || 180000)/1000).toFixed(0)}k m³).\n\n🎙️ **You can type or speak in Hindi, Punjabi, or English** using the microphone button below. How can I help you today?`,
+      content: `Welcome to Kisan AI Mitra, your agricultural advisor powered by Groq.
+
+I have analyzed your farm in ${farmContext.location || 'Punjab'} (${farmContext.total_land_ha || 25} hectares, annual water budget: ${((farmContext.water_budget_m3 || 180000)/1000).toFixed(0)}k cubic meters).
+
+You can speak to me naturally in Hindi, Punjabi, or English using the microphone. Turn on Hands-Free Walkie-Talkie mode to talk back and forth continuously like a live phone call!`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -73,12 +106,26 @@ export const KisanChatbot: React.FC<KisanChatbotProps> = ({ farmContext }) => {
   // Voice Recording (Microphone) State
   const [isListening, setIsListening] = useState<boolean>(false);
   const [voiceLang, setVoiceLang] = useState<string>('hi-IN');
+  const [isContinuousVoiceMode, setIsContinuousVoiceMode] = useState<boolean>(false);
+  
   const recognitionRef = useRef<any>(null);
+  const isContinuousVoiceModeRef = useRef<boolean>(false);
+  const isSpeakingRef = useRef<boolean>(false);
+  const isLoadingRef = useRef<boolean>(false);
 
   // Text-To-Speech (Audio Output) State
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Synchronize refs
+  useEffect(() => {
+    isContinuousVoiceModeRef.current = isContinuousVoiceMode;
+  }, [isContinuousVoiceMode]);
+
+  useEffect(() => {
+    isLoadingRef.current = isLoading;
+  }, [isLoading]);
 
   // Initialize Key & Model on Mount
   useEffect(() => {
@@ -93,7 +140,7 @@ export const KisanChatbot: React.FC<KisanChatbotProps> = ({ farmContext }) => {
     }
   }, []);
 
-  // Fetch available models whenever modal opens or key changes
+  // Fetch available models whenever modal opens
   useEffect(() => {
     if (isKeyModalOpen && groqKey && groqKey.startsWith('gsk_')) {
       void fetchAvailableGroqModels(groqKey).then(models => {
@@ -109,7 +156,7 @@ export const KisanChatbot: React.FC<KisanChatbotProps> = ({ farmContext }) => {
     }
   }, [messages, isOpen]);
 
-  // Handle Voice Input (SpeechRecognition)
+  // Initialize Speech Recognition
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition) {
@@ -133,79 +180,153 @@ export const KisanChatbot: React.FC<KisanChatbotProps> = ({ farmContext }) => {
       recognition.onerror = (event: any) => {
         console.warn("Speech recognition error:", event.error);
         setIsListening(false);
+        // If continuous mode and not an abort, restart listening after pause
+        if (isContinuousVoiceModeRef.current && !isSpeakingRef.current && !isLoadingRef.current) {
+          setTimeout(() => {
+            if (isContinuousVoiceModeRef.current && !isSpeakingRef.current && !isLoadingRef.current) {
+              try { recognition.start(); } catch (_) {}
+            }
+          }, 1500);
+        }
       };
 
       recognition.onend = () => {
         setIsListening(false);
+
+        // In continuous voice mode: if user finished a sentence, automatically submit it!
+        setInputMessage((currentText) => {
+          const trimmed = currentText.trim();
+          if (trimmed.length > 2 && !isLoadingRef.current && !isSpeakingRef.current) {
+            setTimeout(() => {
+              void handleSendMessage(trimmed);
+            }, 100);
+            return '';
+          }
+          // If no speech, re-arm listening in continuous mode
+          if (isContinuousVoiceModeRef.current && !isSpeakingRef.current && !isLoadingRef.current) {
+            setTimeout(() => {
+              if (isContinuousVoiceModeRef.current && !isSpeakingRef.current && !isLoadingRef.current) {
+                try { recognition.start(); } catch (_) {}
+              }
+            }, 800);
+          }
+          return currentText;
+        });
       };
 
       recognitionRef.current = recognition;
     }
   }, [voiceLang]);
 
+  // Safely start microphone
+  const startListening = () => {
+    if (!recognitionRef.current || isSpeakingRef.current || isLoadingRef.current) return;
+    try {
+      recognitionRef.current.lang = voiceLang;
+      recognitionRef.current.start();
+    } catch (_) {}
+  };
+
+  // Safely stop microphone
+  const stopListening = () => {
+    if (!recognitionRef.current) return;
+    try {
+      recognitionRef.current.stop();
+    } catch (_) {}
+    setIsListening(false);
+  };
+
+  // Toggle Standard Mic
   const toggleListening = () => {
     if (!recognitionRef.current) {
       alert("Voice speech recognition is not supported in this browser. Please use Google Chrome or Microsoft Edge.");
       return;
     }
-
     if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
+      stopListening();
     } else {
-      try {
-        recognitionRef.current.lang = voiceLang;
-        recognitionRef.current.start();
-      } catch (err) {
-        console.warn("Recognition already started or error:", err);
-      }
+      startListening();
     }
   };
 
-  // Handle Text-to-Speech (Speaking Aloud)
-  const speakText = (text: string, msgId: string) => {
-    if (!('speechSynthesis' in window)) {
-      alert("Text-to-speech is not supported in this browser.");
-      return;
-    }
+  // Toggle Hands-Free Continuous Conversation Loop
+  const toggleContinuousMode = () => {
+    const nextState = !isContinuousVoiceMode;
+    setIsContinuousVoiceMode(nextState);
+    isContinuousVoiceModeRef.current = nextState;
 
-    if (speakingMessageId === msgId) {
+    if (nextState) {
+      startListening();
+    } else {
+      stopListening();
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      setSpeakingMessageId(null);
+      isSpeakingRef.current = false;
+    }
+  };
+
+  // Human-Sounding Speech Synthesis (TTS) without asterisks, tables, or emojis
+  const speakText = (rawText: string, msgId: string, autoContinueAfter = false) => {
+    if (!('speechSynthesis' in window)) return;
+
+    if (speakingMessageId === msgId && !autoContinueAfter) {
       window.speechSynthesis.cancel();
       setSpeakingMessageId(null);
+      isSpeakingRef.current = false;
       return;
     }
 
+    // Stop microphone before AI speaks to prevent mic feedback
+    stopListening();
     window.speechSynthesis.cancel();
 
-    // Clean markdown characters for pleasant speech
-    const cleanText = text
-      .replace(/[*#_`]/g, '')
-      .replace(/\[(.*?)\]\(.*?\)/g, '$1')
-      .replace(/https?:\/\/\S+/g, '');
+    // Clean text completely: NO asterisks, NO markdown tables, NO emojis!
+    const cleanSpeech = cleanTextForSpeech(rawText);
+    if (!cleanSpeech) return;
 
-    const utterance = new SpeechSynthesisUtterance(cleanText);
+    const utterance = new SpeechSynthesisUtterance(cleanSpeech);
     
-    // Choose appropriate voice or language
-    if (/[\u0A00-\u0A7F]/.test(cleanText)) {
+    // Choose appropriate regional voice language
+    if (/[\u0A00-\u0A7F]/.test(cleanSpeech)) {
       utterance.lang = 'pa-IN'; // Punjabi
-    } else if (/[\u0900-\u097F]/.test(cleanText)) {
+    } else if (/[\u0900-\u097F]/.test(cleanSpeech)) {
       utterance.lang = 'hi-IN'; // Hindi
     } else {
       utterance.lang = 'en-IN'; // Indian English
     }
 
-    utterance.rate = 0.95; // Slightly slower for clarity
+    utterance.rate = 1.0;
     utterance.pitch = 1.0;
+
+    utterance.onstart = () => {
+      setSpeakingMessageId(msgId);
+      isSpeakingRef.current = true;
+    };
 
     utterance.onend = () => {
       setSpeakingMessageId(null);
+      isSpeakingRef.current = false;
+
+      // CONTINUOUS CONVERSATION: When AI finishes speaking, immediately re-open mic for user!
+      if (isContinuousVoiceModeRef.current || autoContinueAfter) {
+        setTimeout(() => {
+          if (isContinuousVoiceModeRef.current && !isSpeakingRef.current) {
+            startListening();
+          }
+        }, 500);
+      }
     };
 
     utterance.onerror = () => {
       setSpeakingMessageId(null);
+      isSpeakingRef.current = false;
+      if (isContinuousVoiceModeRef.current) {
+        setTimeout(startListening, 600);
+      }
     };
 
-    setSpeakingMessageId(msgId);
     window.speechSynthesis.speak(utterance);
   };
 
@@ -214,10 +335,7 @@ export const KisanChatbot: React.FC<KisanChatbotProps> = ({ farmContext }) => {
     const text = (textToSend || inputMessage).trim();
     if (!text || isLoading) return;
 
-    if (isListening && recognitionRef.current) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    }
+    stopListening();
 
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
@@ -229,6 +347,7 @@ export const KisanChatbot: React.FC<KisanChatbotProps> = ({ farmContext }) => {
     setMessages((prev) => [...prev, userMsg]);
     setInputMessage('');
     setIsLoading(true);
+    isLoadingRef.current = true;
 
     try {
       const historyPayload = messages
@@ -243,25 +362,35 @@ export const KisanChatbot: React.FC<KisanChatbotProps> = ({ farmContext }) => {
         selectedModel
       );
 
+      const botMsgId = (Date.now() + 1).toString();
       const botMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
+        id: botMsgId,
         role: 'assistant',
         content: res.reply,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
       setMessages((prev) => [...prev, botMsg]);
+
+      // If continuous conversation mode is active, automatically speak answer aloud!
+      if (isContinuousVoiceModeRef.current) {
+        speakText(res.reply, botMsgId, true);
+      }
     } catch (err) {
       console.error("Chat error:", err);
       const errorMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: "⚠️ I encountered an error connecting to Groq. Please verify your Groq API key in settings or try again in a moment.",
+        content: "I encountered an error connecting to Groq. Please check your network or API key.",
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages((prev) => [...prev, errorMsg]);
+      if (isContinuousVoiceModeRef.current) {
+        speakText(errorMsg.content, errorMsg.id || '', true);
+      }
     } finally {
       setIsLoading(false);
+      isLoadingRef.current = false;
     }
   };
 
@@ -282,25 +411,25 @@ export const KisanChatbot: React.FC<KisanChatbotProps> = ({ farmContext }) => {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 z-40 bg-emerald-700 hover:bg-emerald-800 text-white rounded-2xl p-3.5 shadow-2xl flex items-center gap-3 transition-all transform hover:scale-105 cursor-pointer border-2 border-emerald-500/40 group"
+          className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-emerald-700 to-teal-800 hover:from-emerald-800 hover:to-teal-900 text-white rounded-2xl p-3.5 shadow-2xl flex items-center gap-3 transition-all transform hover:scale-105 cursor-pointer border-2 border-emerald-500/40 group"
           title="Open Kisan AI Voice Chatbot"
         >
           <div className="relative">
-            <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-xl shadow-inner">
+            <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center text-xl shadow-inner border border-white/20">
               🌾
             </div>
-            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-amber-400 border-2 border-emerald-800 rounded-full animate-ping" />
-            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-amber-400 border-2 border-emerald-800 rounded-full" />
+            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-amber-400 border-2 border-emerald-900 rounded-full animate-ping" />
+            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-amber-400 border-2 border-emerald-900 rounded-full" />
           </div>
           <div className="text-left pr-1 hidden sm:block">
             <div className="text-xs font-heading font-extrabold flex items-center gap-1.5">
               <span>Kisan AI Mitra</span>
-              <span className="text-[10px] bg-amber-400 text-slate-900 font-extrabold px-1.5 py-0.2 rounded font-mono">
+              <span className="text-[10px] bg-amber-400 text-slate-950 font-extrabold px-1.5 py-0.2 rounded font-mono">
                 GROQ
               </span>
             </div>
             <p className="text-[11px] text-emerald-100 font-medium flex items-center gap-1">
-              <span>🎙️ Voice & Multilingual</span>
+              <span>🎙️ Voice Conversation</span>
             </p>
           </div>
         </button>
@@ -308,64 +437,82 @@ export const KisanChatbot: React.FC<KisanChatbotProps> = ({ farmContext }) => {
 
       {/* Main Chatbot Drawer / Modal */}
       {isOpen && (
-        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-[94vw] sm:w-[440px] h-[640px] max-h-[90vh] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-200">
+        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-[94vw] sm:w-[450px] h-[660px] max-h-[92vh] bg-white rounded-2xl shadow-2xl border border-slate-300 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-200">
           
           {/* Header */}
-          <div className="bg-gradient-to-r from-emerald-800 via-emerald-700 to-teal-800 text-white p-4 flex items-center justify-between shrink-0 shadow-sm">
+          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-4 flex items-center justify-between shrink-0 border-b border-slate-700 shadow-sm">
             <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-xl shadow-xs">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-xl shadow-md border border-white/20">
                 🌾
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <h3 className="font-heading font-extrabold text-sm tracking-tight">
+                  <h3 className="font-heading font-extrabold text-sm tracking-tight text-white">
                     Kisan AI Mitra
                   </h3>
-                  <span className="text-[10px] bg-amber-400 text-slate-950 font-bold px-1.5 py-0.2 rounded font-mono">
-                    Groq LLaMA-3.3
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold px-1.5 py-0.2 rounded font-mono">
+                    Groq AI
                   </span>
                 </div>
-                <p className="text-[11px] text-emerald-100 font-medium">
-                  किसान एआई मित्र • Voice & Multilingual
+                <p className="text-[11px] text-slate-300 font-medium">
+                  Continuous Voice &bull; Multilingual Agronomist
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
+              {/* Hands-Free Continuous Conversation Toggle Button */}
+              <button
+                type="button"
+                onClick={toggleContinuousMode}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 border ${
+                  isContinuousVoiceMode 
+                    ? 'bg-rose-600 text-white border-rose-500 shadow-md animate-pulse ring-2 ring-rose-400' 
+                    : 'bg-slate-800 hover:bg-slate-750 text-slate-300 border-slate-750 hover:text-white'
+                }`}
+                title={isContinuousVoiceMode ? "Hands-free continuous conversation is active (Click to disable)" : "Turn on hands-free continuous talk mode"}
+              >
+                <Radio className="w-3.5 h-3.5" />
+                <span className="text-[11px]">{isContinuousVoiceMode ? 'Live Talking' : 'Walkie-Talkie'}</span>
+              </button>
+
               {/* Settings / API Key button */}
               <button
                 onClick={() => setIsKeyModalOpen(true)}
                 title="Configure Groq API Key & Models"
                 className={`p-2 rounded-xl transition cursor-pointer flex items-center gap-1 ${
-                  groqKey ? 'bg-white/10 hover:bg-white/20 text-emerald-100' : 'bg-amber-400 text-slate-900 hover:bg-amber-300 font-bold text-xs px-2.5'
+                  groqKey ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-amber-400 text-slate-950 font-bold text-xs px-2.5'
                 }`}
               >
                 <Key className="w-4 h-4" />
-                {!groqKey && <span className="text-[10px]">Set Key</span>}
+                {!groqKey && <span className="text-[10px]">Key</span>}
               </button>
 
               {/* Close Button */}
               <button
                 onClick={() => {
                   window.speechSynthesis?.cancel();
+                  setIsContinuousVoiceMode(false);
+                  isContinuousVoiceModeRef.current = false;
+                  stopListening();
                   setIsOpen(false);
                 }}
-                className="p-2 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
           </div>
 
-          {/* Farm Context Ribbon (Synchronized Live with Selected Location & Sliders) */}
-          <div className="bg-slate-100/90 border-b border-slate-200 px-3.5 py-2 text-[11px] text-slate-700 flex items-center justify-between shrink-0 font-medium">
+          {/* Farm Context Ribbon */}
+          <div className="bg-slate-100 border-b border-slate-200 px-3.5 py-2 text-[11px] text-slate-700 flex items-center justify-between shrink-0 font-medium">
             <div className="flex items-center gap-1.5 truncate">
               <span className="text-emerald-700">📍</span>
               <span className="font-bold text-slate-900 truncate">{farmContext.location || 'Sangrur, Punjab'}</span>
-              <span>•</span>
+              <span>&bull;</span>
               <span>{farmContext.total_land_ha || 25} ha</span>
-              <span>•</span>
-              <span className="text-blue-700 font-bold">{((farmContext.water_budget_m3 || 180000)/1000).toFixed(0)}k m³</span>
+              <span>&bull;</span>
+              <span className="text-sky-700 font-bold">{((farmContext.water_budget_m3 || 180000)/1000).toFixed(0)}k m³</span>
             </div>
             <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded shrink-0">
               Active Context
@@ -373,7 +520,7 @@ export const KisanChatbot: React.FC<KisanChatbotProps> = ({ farmContext }) => {
           </div>
 
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/50">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/60">
             {messages.map((msg) => (
               <div
                 key={msg.id}
@@ -386,36 +533,36 @@ export const KisanChatbot: React.FC<KisanChatbotProps> = ({ farmContext }) => {
                 )}
 
                 <div
-                  className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-xs shadow-xs leading-relaxed ${
+                  className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs shadow-xs leading-relaxed ${
                     msg.role === 'user'
                       ? 'bg-emerald-700 text-white rounded-tr-none'
-                      : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none'
+                      : 'bg-white border border-slate-200 text-slate-850 rounded-tl-none font-medium'
                   }`}
                 >
-                  {/* Message Content with Markdown rendering */}
+                  {/* Clean message presentation */}
                   <div className="whitespace-pre-wrap font-sans">
                     {msg.content}
                   </div>
 
                   {/* Message Footer: Timestamp and Audio TTS Play Button */}
-                  <div className="flex items-center justify-between gap-3 mt-1.5 pt-1 border-t border-slate-100/60 text-[10px] opacity-75">
+                  <div className="flex items-center justify-between gap-3 mt-2 pt-1.5 border-t border-slate-200/60 text-[10px] text-slate-500">
                     <span>{msg.timestamp}</span>
 
                     {msg.role === 'assistant' && (
                       <button
                         onClick={() => speakText(msg.content, msg.id || '')}
                         className="flex items-center gap-1 font-bold text-emerald-700 hover:text-emerald-800 transition cursor-pointer"
-                        title="Speak this answer aloud (ਸੁਣੋ)"
+                        title="Listen to clean human speech (ਸੁਣੋ)"
                       >
                         {speakingMessageId === msg.id ? (
                           <>
-                            <Square className="w-3 h-3 fill-current text-red-600" />
-                            <span className="text-red-600 font-bold">Stop Audio</span>
+                            <Square className="w-3 h-3 fill-current text-rose-600" />
+                            <span className="text-rose-600 font-bold">Stop Audio</span>
                           </>
                         ) : (
                           <>
                             <Volume2 className="w-3.5 h-3.5" />
-                            <span>🔊 Suno (ਸੁਣੋ)</span>
+                            <span>Listen (ਸੁਣੋ)</span>
                           </>
                         )}
                       </button>
@@ -437,12 +584,34 @@ export const KisanChatbot: React.FC<KisanChatbotProps> = ({ farmContext }) => {
                 <div className="w-7 h-7 rounded-lg bg-emerald-700 text-white flex items-center justify-center text-xs shrink-0 shadow-2xs">
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                 </div>
-                <span className="font-medium animate-pulse">Kisan AI is formulating agricultural advisory...</span>
+                <span className="font-medium animate-pulse">Kisan AI is formulating agricultural advice...</span>
               </div>
             )}
 
             <div ref={messagesEndRef} />
           </div>
+
+          {/* Continuous Voice Loop Live Indicator */}
+          {isContinuousVoiceMode && (
+            <div className="bg-gradient-to-r from-rose-600 to-amber-600 text-white px-3.5 py-1.5 text-xs font-bold flex items-center justify-between shadow-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
+                <span>
+                  {speakingMessageId 
+                    ? 'AI is speaking to you...' 
+                    : isListening 
+                    ? 'Your turn: Speak now (Listening...)' 
+                    : 'Walkie-Talkie Mode Active'}
+                </span>
+              </div>
+              <button
+                onClick={toggleContinuousMode}
+                className="text-[10px] bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded cursor-pointer"
+              >
+                Turn Off
+              </button>
+            </div>
+          )}
 
           {/* Suggested Quick Prompt Pills */}
           <div className="px-3 py-1.5 bg-slate-50 border-t border-slate-100 flex gap-1.5 overflow-x-auto no-scrollbar shrink-0">
@@ -462,15 +631,15 @@ export const KisanChatbot: React.FC<KisanChatbotProps> = ({ farmContext }) => {
           <div className="p-3 bg-white border-t border-slate-200 shrink-0">
             
             {/* Live Listening Waves Banner */}
-            {isListening && (
-              <div className="mb-2 bg-red-50 border border-red-200 rounded-xl p-2 flex items-center justify-between text-xs text-red-700 font-bold animate-pulse">
+            {isListening && !isContinuousVoiceMode && (
+              <div className="mb-2 bg-rose-50 border border-rose-200 rounded-xl p-2 flex items-center justify-between text-xs text-rose-700 font-bold animate-pulse">
                 <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping" />
-                  <span>🎙️ Listening in {VOICE_LANGUAGES.find(v => v.code === voiceLang)?.label}... Speak now!</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-ping" />
+                  <span>Listening in {VOICE_LANGUAGES.find(v => v.code === voiceLang)?.label}... Speak now!</span>
                 </div>
                 <button
                   onClick={toggleListening}
-                  className="text-[11px] underline cursor-pointer hover:text-red-900"
+                  className="text-[11px] underline cursor-pointer hover:text-rose-900"
                 >
                   Done
                 </button>
@@ -502,7 +671,7 @@ export const KisanChatbot: React.FC<KisanChatbotProps> = ({ farmContext }) => {
                 onClick={toggleListening}
                 className={`p-2.5 rounded-xl transition cursor-pointer shrink-0 shadow-xs ${
                   isListening 
-                    ? 'bg-red-600 text-white animate-bounce ring-2 ring-red-400' 
+                    ? 'bg-rose-600 text-white animate-bounce ring-2 ring-rose-400' 
                     : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
                 }`}
                 title={isListening ? "Stop listening" : "Click to speak in your language"}
